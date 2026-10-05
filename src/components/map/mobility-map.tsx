@@ -1,296 +1,563 @@
-import React, { useState, useEffect } from 'react';
-import { ROAD_SEGMENTS } from '@/data/intersections';
+'use client';
+
+import React, { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { Map as MapLibreMap, Popup, AttributionControl, GeoJSONSource } from 'maplibre-gl';
+import 'maplibre-gl/dist/maplibre-gl.css';
+
 import { useSimulation } from '@/context/simulation-context';
 import { useTheme } from '@/context/theme-context';
-import { IntersectionMarker } from './intersection-marker';
+import { apiGetZoneMapPayload } from '@/lib/api-client';
+import { getMapStyle, isWebGLSupported } from '@/lib/map/map-styles';
+import { roadsToGeoJSON, intersectionsToGeoJSON, generateSimulatedVehicles } from '@/lib/map/geojson-converter';
+import { SEEDED_MOBILITY_ZONES } from '@/data/mobility-zones-seed';
 import { MapControls } from './map-controls';
 import { MapLegend } from './map-legend';
-import { Ambulance, Sparkles } from 'lucide-react';
+import { MapStatus } from './map-status';
+import { MapLayerToggles, ZoneMapPayload } from '@/types/map';
+import { AlertCircle, RefreshCw } from 'lucide-react';
+import { SimulationTrafficMode } from '@/lib/simulation/simulation-engine';
 
 interface MobilityMapProps {
+  activeZoneId?: string;
   onSelectIntersection?: (id: string) => void;
   heightClass?: string;
 }
 
-export function MobilityMap({ onSelectIntersection, heightClass = 'h-[540px]' }: MobilityMapProps) {
-  const {
-    intersections,
-    selectedIntersection,
-    selectIntersection,
-    emergencyCorridor,
-    simulationMode,
-  } = useSimulation();
+export function MobilityMap({
+  activeZoneId = 'greater-noida-core',
+  onSelectIntersection,
+  heightClass = 'h-[520px] sm:h-[600px]',
+}: MobilityMapProps) {
+  const { simulationMode, selectIntersection } = useSimulation();
   const { isDark } = useTheme();
 
-  const [zoom, setZoom] = useState<number>(1.0);
-  const [showTrafficFlow, setShowTrafficFlow] = useState<boolean>(true);
-  const [showSignalStates, setShowSignalStates] = useState<boolean>(true);
+  const mapContainerRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<MapLibreMap | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
+  const lastTickTimeRef = useRef<number>(0);
+  const tickRef = useRef<number>(0);
 
-  // Animated ambulance position along corridor (Alpha 1 -> Pari Chowk -> Knowledge Park)
-  const [ambulancePos, setAmbulancePos] = useState<{ x: number; y: number; angle: number }>({
-    x: 230,
-    y: 220,
-    angle: 25,
+  // Client hydration & WebGL capability check without cascading re-renders
+  const isClient = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false
+  );
+
+  const webGLAvailable = useSyncExternalStore(
+    () => () => {},
+    () => isWebGLSupported(),
+    () => true
+  );
+
+  const [mapLoaded, setMapLoaded] = useState(false);
+  const [mapPayload, setMapPayload] = useState<ZoneMapPayload | null>(() => {
+    const seed = SEEDED_MOBILITY_ZONES.find((z) => z.id === activeZoneId) || SEEDED_MOBILITY_ZONES[0];
+    return {
+      zoneId: seed.id,
+      zoneName: seed.name,
+      center: [seed.center.longitude, seed.center.latitude],
+      radiusMeters: seed.radiusMeters,
+      boundingBox: seed.boundingBox,
+      roadNetwork: roadsToGeoJSON(seed.roads, simulationMode as SimulationTrafficMode),
+      intersections: intersectionsToGeoJSON(seed.intersections),
+      dataAvailability: seed.dataAvailability,
+      provenance: seed.provenance,
+      lastSimulatedAt: new Date().toISOString(),
+    };
+  });
+  const [loadingPayload, setLoadingPayload] = useState(false);
+
+  const [layers, setLayers] = useState<MapLayerToggles>({
+    showTraffic: true,
+    showIntersections: true,
+    showEmergency: true,
+    showVehicles: true,
   });
 
+  // Load payload asynchronously when zone or simulation mode changes
   useEffect(() => {
-    if (!emergencyCorridor.active) return;
+    let isMounted = true;
 
-    let step = 0;
-    const interval = setInterval(() => {
-      step = (step + 1) % 100;
-      // Waypoint 1: Alpha 1 (230, 220) to Pari Chowk (480, 330) -> first 50%
-      // Waypoint 2: Pari Chowk (480, 330) to Knowledge Park (740, 350) -> next 50%
-      if (step < 50) {
-        const t = step / 50;
-        const x = 230 + (480 - 230) * t;
-        const y = 220 + (330 - 220) * t;
-        setAmbulancePos({ x, y, angle: 24 });
-      } else {
-        const t = (step - 50) / 50;
-        const x = 480 + (740 - 480) * t;
-        const y = 330 + (350 - 330) * t;
-        setAmbulancePos({ x, y, angle: 4 });
+    async function loadZoneData() {
+      try {
+        const res = await apiGetZoneMapPayload(activeZoneId, simulationMode);
+        if (isMounted && res.success && res.data) {
+          setMapPayload(res.data);
+          setLoadingPayload(false);
+          return;
+        }
+      } catch {
+        // Fallback to local calibrated seed
       }
-    }, 150);
 
-    return () => clearInterval(interval);
-  }, [emergencyCorridor.active]);
-
-  const handleSelect = (id: string) => {
-    selectIntersection(id);
-    if (onSelectIntersection) {
-      onSelectIntersection(id);
+      if (!isMounted) return;
+      const seed = SEEDED_MOBILITY_ZONES.find((z) => z.id === activeZoneId) || SEEDED_MOBILITY_ZONES[0];
+      const fallbackPayload: ZoneMapPayload = {
+        zoneId: seed.id,
+        zoneName: seed.name,
+        center: [seed.center.longitude, seed.center.latitude],
+        radiusMeters: seed.radiusMeters,
+        boundingBox: seed.boundingBox,
+        roadNetwork: roadsToGeoJSON(seed.roads, simulationMode as SimulationTrafficMode),
+        intersections: intersectionsToGeoJSON(seed.intersections),
+        dataAvailability: seed.dataAvailability,
+        provenance: seed.provenance,
+        lastSimulatedAt: new Date().toISOString(),
+      };
+      setMapPayload(fallbackPayload);
+      setLoadingPayload(false);
     }
+
+    loadZoneData();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [activeZoneId, simulationMode]);
+
+  // Initialize MapLibre GL Instance
+  useEffect(() => {
+    if (!isClient || !webGLAvailable || !mapContainerRef.current) return;
+    if (mapRef.current) return; // Prevent double instantiation
+
+    const initialStyle = getMapStyle(isDark);
+
+    const map = new MapLibreMap({
+      container: mapContainerRef.current,
+      style: initialStyle,
+      center: [77.5105, 28.4682], // Default Greater Noida Core
+      zoom: 13.5,
+      pitch: 25,
+      bearing: 0,
+      attributionControl: false,
+    });
+
+    map.addControl(new AttributionControl({ compact: true }), 'bottom-right');
+
+    map.on('load', () => {
+      setMapLoaded(true);
+
+      // 1. Road Network Sources & Layers
+      map.addSource('roads-source', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] },
+      });
+
+      // Base Asphalt Casing Layer
+      map.addLayer({
+        id: 'road-base',
+        type: 'line',
+        source: 'roads-source',
+        layout: {
+          'line-cap': 'round',
+          'line-join': 'round',
+        },
+        paint: {
+          'line-color': isDark ? '#172033' : '#cbd5e1',
+          'line-width': ['interpolate', ['linear'], ['zoom'], 11, 3, 14, 8, 17, 14],
+        },
+      });
+
+      // Traffic Overlay Colored Layer
+      map.addLayer({
+        id: 'road-traffic',
+        type: 'line',
+        source: 'roads-source',
+        layout: {
+          'line-cap': 'round',
+          'line-join': 'round',
+        },
+        paint: {
+          'line-color': ['get', 'color'],
+          'line-width': ['interpolate', ['linear'], ['zoom'], 11, 2, 14, 5, 17, 9],
+          'line-opacity': 0.9,
+        },
+      });
+
+      // Emergency Pre-emption Corridor Highlight Layer
+      map.addLayer({
+        id: 'road-emergency-glow',
+        type: 'line',
+        source: 'roads-source',
+        filter: ['==', ['get', 'isEmergencyCorridor'], true],
+        layout: {
+          'line-cap': 'round',
+          'line-join': 'round',
+        },
+        paint: {
+          'line-color': '#f43f5e',
+          'line-width': ['interpolate', ['linear'], ['zoom'], 11, 5, 14, 12, 17, 18],
+          'line-opacity': 0.75,
+          'line-blur': 3,
+        },
+      });
+
+      // 2. Intersections Source & Layers
+      map.addSource('intersections-source', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] },
+      });
+
+      // Outer Halo Circle
+      map.addLayer({
+        id: 'intersections-glow',
+        type: 'circle',
+        source: 'intersections-source',
+        paint: {
+          'circle-radius': ['interpolate', ['linear'], ['zoom'], 11, 6, 14, 12, 17, 16],
+          'circle-color': ['get', 'color'],
+          'circle-opacity': 0.35,
+        },
+      });
+
+      // Core Junction Circle
+      map.addLayer({
+        id: 'intersections-point',
+        type: 'circle',
+        source: 'intersections-source',
+        paint: {
+          'circle-radius': ['interpolate', ['linear'], ['zoom'], 11, 3.5, 14, 7, 17, 10],
+          'circle-color': ['get', 'color'],
+          'circle-stroke-width': 2,
+          'circle-stroke-color': isDark ? '#ffffff' : '#0f172a',
+        },
+      });
+
+      // Junction Label
+      map.addLayer({
+        id: 'intersections-labels',
+        type: 'symbol',
+        source: 'intersections-source',
+        layout: {
+          'text-field': ['get', 'shortName'],
+          'text-size': 11,
+          'text-offset': [0, 1.2],
+          'text-anchor': 'top',
+          'text-font': ['Open Sans Semibold'],
+        },
+        paint: {
+          'text-color': isDark ? '#f8fafc' : '#0f172a',
+          'text-halo-color': isDark ? '#090d16' : '#ffffff',
+          'text-halo-width': 1.5,
+        },
+      });
+
+      // 3. Simulated Vehicles Source & Layer
+      map.addSource('vehicles-source', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] },
+      });
+
+      map.addLayer({
+        id: 'vehicles-layer',
+        type: 'circle',
+        source: 'vehicles-source',
+        paint: {
+          'circle-radius': ['interpolate', ['linear'], ['zoom'], 11, 2.5, 14, 4.5, 17, 6],
+          'circle-color': ['get', 'color'],
+          'circle-stroke-width': 1.5,
+          'circle-stroke-color': '#ffffff',
+          'circle-opacity': 0.95,
+        },
+      });
+
+      // 4. Interactive Hover Cursors
+      map.on('mouseenter', 'road-traffic', () => {
+        map.getCanvas().style.cursor = 'pointer';
+      });
+      map.on('mouseleave', 'road-traffic', () => {
+        map.getCanvas().style.cursor = '';
+      });
+
+      map.on('mouseenter', 'intersections-point', () => {
+        map.getCanvas().style.cursor = 'pointer';
+      });
+      map.on('mouseleave', 'intersections-point', () => {
+        map.getCanvas().style.cursor = '';
+      });
+
+      // 5. Interactive Popups on Click
+      map.on('click', 'road-traffic', (e) => {
+        if (!e.features || e.features.length === 0) return;
+        const feature = e.features[0];
+        const p = feature.properties || {};
+
+        new Popup({ offset: 12, closeButton: true, className: 'niu-map-popup' })
+          .setLngLat(e.lngLat)
+          .setHTML(
+            `<div class="p-2 text-xs font-sans space-y-1.5 min-w-[210px]">
+              <div class="flex items-center justify-between border-b pb-1 font-bold text-slate-900">
+                <span>${p.name || 'Arterial Corridor'}</span>
+                <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-100 text-slate-700">${(p.highwayType || 'primary').toUpperCase()}</span>
+              </div>
+              <div class="grid grid-cols-2 gap-1 text-[11px] pt-0.5">
+                <div><span class="text-slate-500">Traffic:</span> <strong style="color: ${p.color};">${p.trafficState}</strong></div>
+                <div><span class="text-slate-500">Speed:</span> <strong>${p.speedKph} km/h</strong></div>
+                <div><span class="text-slate-500">Volume:</span> <strong>${p.volumeVph} veh/h</strong></div>
+                <div><span class="text-slate-500">Capacity:</span> <strong>${p.capacityVph} veh/h</strong></div>
+                <div><span class="text-slate-500">Queue:</span> <strong>${p.queueLengthMeters}m</strong></div>
+                <div><span class="text-slate-500">Lanes:</span> <strong>${p.lanes}</strong></div>
+              </div>
+              <div class="border-t pt-1 text-[9px] font-mono text-slate-400">
+                Source: NIU SIMULATION (Synthetic Demand)
+              </div>
+            </div>`
+          )
+          .addTo(map);
+      });
+
+      map.on('click', 'intersections-point', (e) => {
+        if (!e.features || e.features.length === 0) return;
+        const feature = e.features[0];
+        const p = feature.properties || {};
+
+        if (p.id && onSelectIntersection) {
+          onSelectIntersection(p.id);
+        }
+        if (p.id) {
+          selectIntersection(p.id);
+        }
+
+        new Popup({ offset: 14, closeButton: true, className: 'niu-map-popup' })
+          .setLngLat(e.lngLat)
+          .setHTML(
+            `<div class="p-2 text-xs font-sans space-y-1.5 min-w-[220px]">
+              <div class="flex items-center justify-between border-b pb-1">
+                <span class="font-bold text-slate-900">${p.name || 'Junction'}</span>
+                <span class="text-[10px] font-mono px-1.5 py-0.5 rounded font-semibold" style="background-color: ${p.color}20; color: ${p.color};">
+                  ${(p.congestionLevel || 'low').toUpperCase()}
+                </span>
+              </div>
+              <div class="grid grid-cols-2 gap-1 text-[11px] pt-0.5">
+                <div><span class="text-slate-500">Vehicles:</span> <strong>${p.vehicleCount}v</strong></div>
+                <div><span class="text-slate-500">Avg Speed:</span> <strong>${p.averageSpeedKmH} km/h</strong></div>
+                <div><span class="text-slate-500">Queue:</span> <strong>${p.queueLengthMeters}m</strong></div>
+                <div><span class="text-slate-500">Wait:</span> <strong>${p.waitingTimeMinutes} min</strong></div>
+              </div>
+              <div class="border-t pt-1 flex items-center justify-between text-[10px] font-mono text-slate-500">
+                <span>Signal: ${p.hasSignal ? 'Active Split' : 'Uncontrolled'}</span>
+                <span class="text-emerald-600 font-semibold">${p.status || 'MONITORED'}</span>
+              </div>
+            </div>`
+          )
+          .addTo(map);
+      });
+    });
+
+    mapRef.current = map;
+
+    return () => {
+      map.remove();
+      mapRef.current = null;
+      setMapLoaded(false);
+    };
+  }, [isClient, webGLAvailable, isDark, onSelectIntersection, selectIntersection]);
+
+  // Update Data Sources and Camera when MapPayload changes
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapLoaded || !mapPayload) return;
+
+    // Update Roads GeoJSON
+    const roadsSource = map.getSource('roads-source') as GeoJSONSource | undefined;
+    if (roadsSource && mapPayload.roadNetwork) {
+      roadsSource.setData(mapPayload.roadNetwork);
+    }
+
+    // Update Intersections GeoJSON
+    const interSource = map.getSource('intersections-source') as GeoJSONSource | undefined;
+    if (interSource && mapPayload.intersections) {
+      interSource.setData(mapPayload.intersections);
+    }
+
+    // Fit camera to zone bounding box
+    if (mapPayload.boundingBox) {
+      const bb = mapPayload.boundingBox;
+      map.fitBounds(
+        [
+          [bb.minLng, bb.minLat],
+          [bb.maxLng, bb.maxLat],
+        ],
+        {
+          padding: 45,
+          maxZoom: 15.5,
+          duration: 1200,
+        }
+      );
+    } else if (mapPayload.center) {
+      map.flyTo({
+        center: mapPayload.center,
+        zoom: 14,
+        duration: 1000,
+      });
+    }
+  }, [mapLoaded, mapPayload]);
+
+  // Update Layer Visibility Toggles
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapLoaded) return;
+
+    if (map.getLayer('road-traffic')) {
+      map.setLayoutProperty('road-traffic', 'visibility', layers.showTraffic ? 'visible' : 'none');
+    }
+    if (map.getLayer('intersections-point')) {
+      map.setLayoutProperty('intersections-point', 'visibility', layers.showIntersections ? 'visible' : 'none');
+      map.setLayoutProperty('intersections-glow', 'visibility', layers.showIntersections ? 'visible' : 'none');
+      map.setLayoutProperty('intersections-labels', 'visibility', layers.showIntersections ? 'visible' : 'none');
+    }
+    if (map.getLayer('road-emergency-glow')) {
+      map.setLayoutProperty(
+        'road-emergency-glow',
+        'visibility',
+        layers.showEmergency && simulationMode === 'emergency' ? 'visible' : 'none'
+      );
+    }
+    if (map.getLayer('vehicles-layer')) {
+      map.setLayoutProperty('vehicles-layer', 'visibility', layers.showVehicles ? 'visible' : 'none');
+    }
+  }, [mapLoaded, layers, simulationMode]);
+
+  // Simulated Vehicles Animation Loop
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapLoaded || !mapPayload || !layers.showVehicles) return;
+
+    // Convert GeoRoadSegment coordinates from roadNetwork GeoJSON
+    const seedZone = SEEDED_MOBILITY_ZONES.find((z) => z.id === activeZoneId) || SEEDED_MOBILITY_ZONES[0];
+    const roads = seedZone.roads;
+
+    const animateVehicles = (timestamp: number) => {
+      if (!lastTickTimeRef.current) lastTickTimeRef.current = timestamp;
+      const elapsed = timestamp - lastTickTimeRef.current;
+
+      // Update position every ~120ms to avoid high CPU usage
+      if (elapsed > 120 && !document.hidden) {
+        tickRef.current += 1;
+        lastTickTimeRef.current = timestamp;
+
+        const vehiclesSource = map.getSource('vehicles-source') as GeoJSONSource | undefined;
+        if (vehiclesSource) {
+          const vehiclesGeoJSON = generateSimulatedVehicles(roads, tickRef.current, 16);
+          vehiclesSource.setData(vehiclesGeoJSON);
+        }
+      }
+
+      animationFrameRef.current = requestAnimationFrame(animateVehicles);
+    };
+
+    animationFrameRef.current = requestAnimationFrame(animateVehicles);
+
+    return () => {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+    };
+  }, [mapLoaded, mapPayload, layers.showVehicles, activeZoneId]);
+
+  // Control Callbacks
+  const handleZoomIn = () => mapRef.current?.zoomIn();
+  const handleZoomOut = () => mapRef.current?.zoomOut();
+  const handleResetBounds = () => {
+    if (!mapRef.current || !mapPayload?.boundingBox) return;
+    const bb = mapPayload.boundingBox;
+    mapRef.current.fitBounds(
+      [
+        [bb.minLng, bb.minLat],
+        [bb.maxLng, bb.maxLat],
+      ],
+      { padding: 45, maxZoom: 15.5, duration: 800 }
+    );
   };
 
-  const getSegmentStroke = (congestion: 'low' | 'moderate' | 'severe') => {
-    if (simulationMode === 'optimized') {
-      return isDark ? '#10b981' : '#059669';
-    }
-    switch (congestion) {
-      case 'low':
-        return isDark ? '#10b981' : '#059669';
-      case 'moderate':
-        return isDark ? '#f59e0b' : '#d97706';
-      case 'severe':
-        return isDark ? '#ef4444' : '#dc2626';
-    }
+  const handleToggleLayer = (key: keyof MapLayerToggles) => {
+    setLayers((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
-  const canvasBg = isDark ? '#080c14' : '#f8fafc';
-  const gridStroke = isDark ? '#141c2e' : '#e2e8f0';
-  const roadBaseColor = isDark ? '#172033' : '#cbd5e1';
-  const roadLaneColor = isDark ? '#1f2d47' : '#ffffff';
+  // Fallback if WebGL is unavailable
+  if (isClient && !webGLAvailable) {
+    return (
+      <div
+        className={`relative w-full ${heightClass} rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#090d16] p-6 flex flex-col items-center justify-center text-center`}
+      >
+        <AlertCircle className="w-8 h-8 text-amber-500 mb-2" />
+        <h3 className="font-bold text-slate-800 dark:text-slate-200 text-sm">
+          WebGL Hardware Acceleration Unavailable
+        </h3>
+        <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md mt-1 mb-4">
+          Interactive MapLibre canvas requires WebGL. NIU traffic intelligence and signal optimization algorithms continue operating in deterministic simulation mode.
+        </p>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 w-full max-w-lg text-left text-xs font-mono">
+          <div className="p-2 rounded border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+            <span className="text-slate-400 block text-[10px]">Zone</span>
+            <strong className="text-slate-800 dark:text-slate-200">{mapPayload?.zoneName || 'Greater Noida'}</strong>
+          </div>
+          <div className="p-2 rounded border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+            <span className="text-slate-400 block text-[10px]">Roads</span>
+            <strong className="text-emerald-500">{mapPayload?.roadNetwork.features.length || 0} Segments</strong>
+          </div>
+          <div className="p-2 rounded border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+            <span className="text-slate-400 block text-[10px]">Junctions</span>
+            <strong className="text-cyan-500">{mapPayload?.intersections.features.length || 0} Nodes</strong>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
-      className={`relative w-full ${heightClass} rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#080c14] overflow-hidden select-none flex flex-col transition-colors duration-150 shadow-xs dark:shadow-none`}
+      className={`relative w-full ${heightClass} rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-[#080c14] overflow-hidden select-none flex flex-col transition-colors duration-150 shadow-xs`}
     >
-      {/* Top Banner / Breadcrumb Overlay */}
-      <div className="absolute top-3 left-3 z-10 flex items-center gap-2 pointer-events-auto">
-        <div className="bg-white/90 dark:bg-[#0b0f19]/90 backdrop-blur-sm border border-slate-200 dark:border-slate-800 px-3 py-1.5 rounded-lg flex items-center gap-2 text-xs text-slate-800 dark:text-slate-200 shadow-sm">
-          <span className="font-semibold text-slate-800 dark:text-slate-200">GREATER NOIDA NETWORK</span>
-          <span className="text-slate-400">•</span>
-          <span className="text-[10px] font-mono text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-200 dark:border-emerald-500/20 font-semibold">
-            SIMULATION
-          </span>
-          {simulationMode === 'rush_hour' && (
-            <span className="text-[10px] font-mono text-amber-800 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-200 dark:border-amber-500/20 font-semibold">
-              RUSH HOUR (+35%)
-            </span>
-          )}
-          {simulationMode === 'optimized' && (
-            <span className="text-[10px] font-mono text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-500/20 px-1.5 py-0.5 rounded border border-emerald-300 dark:border-emerald-500/40 font-semibold flex items-center gap-1">
-              <Sparkles className="w-3 h-3 text-emerald-500" />
-              <span>WEBSTER BALANCED</span>
-            </span>
-          )}
-        </div>
+      {/* MapLibre DOM Container */}
+      <div ref={mapContainerRef} className="w-full h-full absolute inset-0 z-0" />
+
+      {/* Top Left: Map Status Panel (Zone name, road count, data availability) */}
+      <div className="absolute top-3 left-3 z-10 max-w-[280px] sm:max-w-xs">
+        <MapStatus
+          zoneName={mapPayload?.zoneName || 'Greater Noida Core'}
+          radiusMeters={mapPayload?.radiusMeters || 1500}
+          roadCount={mapPayload?.roadNetwork.features.length || 0}
+          intersectionCount={mapPayload?.intersections.features.length || 0}
+          simulationMode={simulationMode}
+          lastSimulatedAt={mapPayload?.lastSimulatedAt}
+        />
       </div>
 
-      {/* Emergency Active Status Header Overlay */}
-      {emergencyCorridor.active && (
-        <div className="absolute top-3 right-16 z-10 pointer-events-auto bg-rose-50 dark:bg-rose-950/90 border border-rose-300 dark:border-rose-500/40 px-3 py-1.5 rounded-lg text-xs text-rose-800 dark:text-rose-200 flex items-center gap-3 shadow-md">
-          <div className="flex items-center gap-1.5 font-medium">
-            <Ambulance className="w-4 h-4 text-rose-500 dark:text-rose-400 animate-bounce" />
-            <span>Priority Corridor: Alpha 1 ➔ Pari Chowk ➔ Knowledge Park</span>
-          </div>
-          <div className="hidden sm:flex items-center gap-2 border-l border-rose-300 dark:border-rose-800 pl-2 text-[11px] font-mono">
-            <span>Normal ETA: 14m 32s</span>
-            <span className="text-emerald-700 dark:text-emerald-300 font-bold">NIU: 10m 51s (-3m 41s)</span>
-          </div>
-        </div>
-      )}
-
-      {/* Vector SVG Canvas Area */}
-      <div className="flex-1 w-full h-full relative overflow-hidden flex items-center justify-center">
-        <svg
-          viewBox="0 0 1000 640"
-          className="w-full h-full object-contain transition-transform duration-300"
-          style={{ transform: `scale(${zoom})` }}
-          preserveAspectRatio="xMidYMid meet"
-          aria-label="Interactive Greater Noida Mobility Network Map"
-        >
-          <defs>
-            {/* Grid Pattern */}
-            <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-              <path d="M 40 0 L 0 0 0 40" fill="none" stroke={gridStroke} strokeWidth="0.8" opacity="0.6" />
-            </pattern>
-
-            {/* Glowing filter for active lines */}
-            <filter id="glow-emergency" x="-20%" y="-20%" width="140%" height="140%">
-              <feGaussianBlur stdDeviation="4" result="blur" />
-              <feComposite in="SourceGraphic" in2="blur" operator="over" />
-            </filter>
-          </defs>
-
-          {/* Background Grid */}
-          <rect width="1000" height="640" fill={canvasBg} />
-          <rect width="1000" height="640" fill="url(#grid)" />
-
-          {/* Road Network Base Layer (Thick asphalt base) */}
-          <g id="road-base-lines">
-            {ROAD_SEGMENTS.map((seg) => (
-              <path
-                key={`base-${seg.id}`}
-                d={seg.svgPath}
-                stroke={roadBaseColor}
-                strokeWidth="18"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                fill="none"
-              />
-            ))}
-          </g>
-
-          {/* Road Lane Markings (Dashed white/slate lines) */}
-          <g id="road-lanes">
-            {ROAD_SEGMENTS.map((seg) => (
-              <path
-                key={`lane-${seg.id}`}
-                d={seg.svgPath}
-                stroke={roadLaneColor}
-                strokeWidth="8"
-                strokeLinecap="round"
-                fill="none"
-              />
-            ))}
-          </g>
-
-          {/* Congestion Color Overlay */}
-          <g id="road-congestion">
-            {ROAD_SEGMENTS.map((seg) => {
-              const strokeColor = getSegmentStroke(seg.congestionLevel);
-              return (
-                <path
-                  key={`cong-${seg.id}`}
-                  d={seg.svgPath}
-                  stroke={strokeColor}
-                  strokeWidth="3.5"
-                  strokeOpacity="0.75"
-                  strokeLinecap="round"
-                  fill="none"
-                />
-              );
-            })}
-          </g>
-
-          {/* Traffic Flow Animation Pulses */}
-          {showTrafficFlow && (
-            <g id="traffic-pulses">
-              {ROAD_SEGMENTS.map((seg) => {
-                const strokeColor = getSegmentStroke(seg.congestionLevel);
-                return (
-                  <path
-                    key={`pulse-${seg.id}`}
-                    d={seg.svgPath}
-                    stroke={strokeColor}
-                    strokeWidth="4"
-                    strokeDasharray="10 24"
-                    className="animate-pulse-flow opacity-90"
-                    fill="none"
-                  />
-                );
-              })}
-            </g>
-          )}
-
-          {/* Emergency Priority Highlight Corridor */}
-          {emergencyCorridor.active && (
-            <g id="emergency-corridor-highlight">
-              {/* Alpha 1 -> Pari Chowk */}
-              <path
-                d="M 230 220 L 480 330"
-                stroke="#06b6d4"
-                strokeWidth="8"
-                strokeOpacity="0.8"
-                filter="url(#glow-emergency)"
-                strokeLinecap="round"
-                className="animate-pulse-flow-fast"
-                strokeDasharray="14 18"
-                fill="none"
-              />
-              {/* Pari Chowk -> Knowledge Park */}
-              <path
-                d="M 480 330 L 740 350"
-                stroke="#06b6d4"
-                strokeWidth="8"
-                strokeOpacity="0.8"
-                filter="url(#glow-emergency)"
-                strokeLinecap="round"
-                className="animate-pulse-flow-fast"
-                strokeDasharray="14 18"
-                fill="none"
-              />
-
-              {/* Animated Ambulance Icon traveling on corridor */}
-              <g
-                transform={`translate(${ambulancePos.x}, ${ambulancePos.y}) rotate(${ambulancePos.angle})`}
-                className="transition-all duration-150"
-              >
-                <circle cx="0" cy="0" r="14" fill={canvasBg} stroke="#ef4444" strokeWidth="2" />
-                <circle cx="0" cy="0" r="18" fill="none" stroke="#ef4444" strokeWidth="1.5" className="animate-beacon" />
-                {/* Ambulance Cross Marker */}
-                <rect x="-6" y="-2" width="12" height="4" fill="#ef4444" rx="1" />
-                <rect x="-2" y="-6" width="4" height="12" fill="#ef4444" rx="1" />
-              </g>
-            </g>
-          )}
-
-          {/* Intersections Marker Nodes */}
-          <g id="intersections-layer">
-            {intersections.map((node) => (
-              <IntersectionMarker
-                key={node.id}
-                intersection={node}
-                isSelected={selectedIntersection?.id === node.id}
-                showSignalState={showSignalStates}
-                onSelect={handleSelect}
-              />
-            ))}
-          </g>
-        </svg>
+      {/* Top Right: Map Controls (Zoom in/out, Recenter, Layer Toggles) */}
+      <div className="absolute top-3 right-3 z-10">
+        <MapControls
+          onZoomIn={handleZoomIn}
+          onZoomOut={handleZoomOut}
+          onResetBounds={handleResetBounds}
+          layers={layers}
+          onToggleLayer={handleToggleLayer}
+        />
       </div>
 
-      {/* Floating Bottom Left: Legend */}
-      <div className="absolute bottom-3 left-3 z-10 hidden sm:block">
+      {/* Bottom Left: Map Legend */}
+      <div className="absolute bottom-3 left-3 z-10 max-w-[260px]">
         <MapLegend />
       </div>
 
-      {/* Floating Bottom Right: Controls */}
-      <div className="absolute bottom-3 right-3 z-10">
-        <MapControls
-          zoom={zoom}
-          onZoomIn={() => setZoom((z) => Math.min(1.6, z + 0.15))}
-          onZoomOut={() => setZoom((z) => Math.max(0.8, z - 0.15))}
-          onReset={() => setZoom(1.0)}
-          showTrafficFlow={showTrafficFlow}
-          onToggleTrafficFlow={() => setShowTrafficFlow((v) => !v)}
-          showSignalStates={showSignalStates}
-          onToggleSignalStates={() => setShowSignalStates((v) => !v)}
-        />
-      </div>
+      {/* Bottom Center: Simulated Vehicles Attribution Pill */}
+      {layers.showVehicles && (
+        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-10 pointer-events-none hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-900/80 text-white border border-slate-700/80 text-[10px] font-mono backdrop-blur-xs">
+          <span className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-ping"></span>
+          <span>SIMULATED VEHICLE PARTICLES (NO GPS TRACKING)</span>
+        </div>
+      )}
+
+      {/* Loading Overlay */}
+      {loadingPayload && (
+        <div className="absolute inset-0 z-20 bg-slate-900/20 backdrop-blur-xs flex items-center justify-center pointer-events-none transition-opacity">
+          <div className="bg-white/95 dark:bg-[#0b0f19]/95 border border-slate-200 dark:border-slate-800 px-3.5 py-2 rounded-lg text-xs font-mono flex items-center gap-2 text-slate-800 dark:text-slate-200 shadow-md">
+            <RefreshCw className="w-3.5 h-3.5 animate-spin text-emerald-500" />
+            <span>Synchronizing Mobility Zone Geometry...</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

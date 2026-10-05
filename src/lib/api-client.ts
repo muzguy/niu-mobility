@@ -217,3 +217,14 @@ export async function apiGetZoneTraffic(zoneId: string, options?: { hour?: numbe
   );
 }
 
+/**
+ * Get Map-ready GeoJSON and telemetry payload for a Mobility Zone
+ */
+export async function apiGetZoneMapPayload(zoneId: string, scenario?: string) {
+  const query = scenario ? `?scenario=${encodeURIComponent(scenario)}` : '';
+  return fetchApi<import('@/types/map').ZoneMapPayload>(
+    `/api/location/zone/${encodeURIComponent(zoneId)}/map${query}`
+  );
+}
+
+

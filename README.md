@@ -21,7 +21,8 @@ NIU delivers a unified **Mobility Command Center** that bridges the gap between 
 
 ## 3. Key Features
 
-- **Mobility Command Center**: Interactive high-altitude vector canvas map of Greater Noida arterial networks (Pari Chowk, Alpha 1, Alpha 2, Knowledge Park, Jagat Farm) with live traffic density pulses and interactive intersection telemetry.
+- **Geospatial Mobility Map (MapLibre GL JS)**: Interactive vector-rendered map of real OpenStreetMap road geometry across Greater Noida zones (Pari Chowk Core, Galgotias University, Dankaur Junction, Knowledge Park) with road-level traffic states (Free Flow, Moderate, Congested, Severe), clickable junction signal inspectors, emergency EVP corridor visualization, and simulated vehicle movement.
+- **Scientifically Honest Provenance Model**: Explicit separation between REAL ROAD NETWORK (OpenStreetMap), SIMULATED TRAFFIC (NIU Synthetic Demand Engine), and NO PHYSICAL SENSORS (Synthetic Disconnected).
 - **Traffic Intelligence Console**: In-depth directional queue metrics, approach speeds, volume curves, and signal timing visualizations.
 - **Webster-Inspired Signal Optimizer**: Deterministic algorithm allocating dynamic green times, cutting waiting times by 20–40% and queues by 18–35%.
 - **Deterministic Carpool Matcher**: Instant ride matching based on spatial route overlap, departure windows, and detour costs—without black-box AI approximations.

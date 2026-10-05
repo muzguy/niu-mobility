@@ -196,3 +196,27 @@ curl -X GET "http://localhost:3000/api/location/zone/galgotias-university/traffi
 ```bash
 curl -X GET "http://localhost:3000/api/traffic?zoneId=galgotias-university"
 ```
+
+### 6. Query Map-Ready Aggregated Payload (Phase 8)
+```bash
+curl -X GET "http://localhost:3000/api/location/zone/greater-noida-core/map?mode=normal"
+```
+
+---
+
+## 7. Phase 8: Real Interactive Mobility Map Architecture
+
+In Phase 8, NIU connects the real OpenStreetMap road network and deterministic synthetic traffic demand to an interactive **MapLibre GL JS** canvas.
+
+### Visual Layer Hierarchy
+1. **Base Map**: CARTO Dark Matter (Dark Mode) or CARTO Positron (Light Mode) raster retina tiles with OpenStreetMap attribution. Optionally override via `NEXT_PUBLIC_MAP_STYLE_URL`.
+2. **Road Network & Traffic State**: Vector LineStrings colored dynamically according to deterministic BPR speed-flow volume/capacity thresholds:
+   - Green (`#10b981`): `FREE_FLOW` (v/c < 0.50)
+   - Amber (`#f59e0b`): `MODERATE` (0.50 ≤ v/c < 0.75)
+   - Orange (`#f97316`): `CONGESTED` (0.75 ≤ v/c < 0.95)
+   - Red (`#ef4444`): `SEVERE` (v/c ≥ 0.95)
+3. **Webster Signal Intersections**: Interactive Circle and Symbol layers rendering monitored nodes with signal phase timings, queue lengths, and optimization statuses.
+4. **Emergency Priority Corridor (EVP)**: Rendered dynamically in `EMERGENCY` simulation mode following actual road/intersection geometry with flashing amber/cyan alerts and pre-emption metrics.
+5. **Simulated Vehicles**: Particle animation along road polylines reflecting segment speed and volume without claiming live GPS tracking.
+6. **Interaction Popups**: Clickable popups on any road segment or intersection node exposing speed, volume, capacity, queue length, green time splits, and data provenance.
+

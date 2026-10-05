@@ -11,6 +11,7 @@ import { SimulationTrafficMode } from '@/lib/simulation/simulation-engine';
 import { LocationSelector } from '@/components/geospatial/location-selector';
 import { apiSetSimulationScenario, apiGetTrafficState } from '@/lib/api-client';
 import { Intersection } from '@/types/traffic';
+import { MobilityMap } from '@/components/map/mobility-map';
 
 export default function TrafficPage() {
   const {
@@ -169,6 +170,31 @@ export default function TrafficPage() {
             );
           })}
         </div>
+      </div>
+
+      {/* REAL INTERACTIVE GEOSPATIAL MAP (MapLibre GL JS + Real OSM Network + Deterministic Traffic) */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <h2 className="text-xs sm:text-sm font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200 font-mono">
+              Geospatial Mobility Network & Corridor Flow
+            </h2>
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20 font-semibold">
+              OSM VECTOR GEOMETRY
+            </span>
+          </div>
+          <span className="text-xs text-slate-500 dark:text-slate-400 hidden sm:inline">
+            Interactive road segments & Webster signal nodes
+          </span>
+        </div>
+        <MobilityMap
+          activeZoneId={activeZoneId}
+          onSelectIntersection={(id) => {
+            setSelectedNodeId(id);
+            selectIntersection(id);
+          }}
+          heightClass="h-[520px] sm:h-[620px]"
+        />
       </div>
 
       {/* TOP STATS: Traffic Load, Average Speed, Queue Length, Waiting Time */}
