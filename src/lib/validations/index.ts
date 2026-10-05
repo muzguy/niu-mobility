@@ -87,3 +87,29 @@ export const emergencyPrioritySchema = z.object({
   origin: z.string().max(100).optional(),
   destination: z.string().max(100).optional(),
 });
+
+export const locationSearchSchema = z.object({
+  q: z
+    .string()
+    .min(1, 'Search query cannot be empty')
+    .max(120, 'Search query exceeds 120 characters'),
+  limit: z.coerce.number().int().min(1).max(20).default(5),
+});
+
+export const createZoneSchema = z.object({
+  name: z
+    .string()
+    .min(2, 'Zone name must be at least 2 characters')
+    .max(100, 'Zone name exceeds 100 characters'),
+  latitude: z.number().min(-90).max(90),
+  longitude: z.number().min(-180).max(180),
+  radiusMeters: z.number().min(200).max(5000).default(1200),
+});
+
+export const getZoneQuerySchema = z.object({
+  lat: z.coerce.number().min(-90, 'Invalid latitude').max(90, 'Invalid latitude'),
+  lng: z.coerce.number().min(-180, 'Invalid longitude').max(180, 'Invalid longitude'),
+  radius: z.coerce.number().min(200).max(5000).default(1200),
+  name: z.string().max(100).optional(),
+});
+

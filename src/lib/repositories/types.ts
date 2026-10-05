@@ -79,6 +79,8 @@ export interface SimulationRunRecord {
   metadata?: Record<string, unknown>;
 }
 
+import { MobilityZone, GeoRoadSegment, MobilityIntersection } from '@/types/geospatial';
+
 /**
  * IMobilityRepository
  * Common contract for data access across Simulation Mode and Supabase/PostgreSQL Mode
@@ -95,4 +97,17 @@ export interface IMobilityRepository {
   logRouteQuery(query: RouteQueryRecord): Promise<void>;
   saveCarpoolRequest(req: CarpoolRequestRecord): Promise<void>;
   logSimulationRun(run: SimulationRunRecord): Promise<void>;
+
+  // Geospatial & Mobility Zone Persistence
+  saveMobilityZone(zone: MobilityZone): Promise<void>;
+  getMobilityZone(id: string): Promise<MobilityZone | null>;
+  listMobilityZones(): Promise<MobilityZone[]>;
+  saveRoadNetwork(
+    zoneId: string,
+    network: { roads: GeoRoadSegment[]; intersections: MobilityIntersection[] }
+  ): Promise<void>;
+  getRoadNetwork(
+    zoneId: string
+  ): Promise<{ roads: GeoRoadSegment[]; intersections: MobilityIntersection[] } | null>;
 }
+

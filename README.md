@@ -81,7 +81,13 @@ All API endpoints return a uniform JSON envelope:
 | Method | Endpoint | Description | Sample Request |
 |---|---|---|---|
 | `GET` | `/api/health` | Service health & active data mode | `curl http://localhost:3000/api/health` |
-| `GET` | `/api/traffic` | Macro traffic metrics & status | `curl http://localhost:3000/api/traffic` |
+| `GET` | `/api/location/search` | OpenStreetMap location search & geocoding | `curl "http://localhost:3000/api/location/search?q=Galgotias+University"` |
+| `GET` | `/api/location/zone` | Query zone by coordinate or list registered zones | `curl "http://localhost:3000/api/location/zone?lat=28.3639&lng=77.5402"` |
+| `POST` | `/api/location/zone` | Create & register a new Mobility Zone | `{"name": "Galgotias University", "latitude": 28.3639, "longitude": 77.5402, "radiusMeters": 1400}` |
+| `GET` | `/api/location/zone/:id` | Retrieve zone metadata & bounds | `curl http://localhost:3000/api/location/zone/galgotias-university` |
+| `GET` | `/api/location/zone/:id/network` | Retrieve road segments and junctions | `curl http://localhost:3000/api/location/zone/galgotias-university/network` |
+| `GET` | `/api/location/zone/:id/traffic` | Location-aware synthetic traffic state | `curl http://localhost:3000/api/location/zone/galgotias-university/traffic` |
+| `GET` | `/api/traffic` | Macro traffic metrics & status (supports `?zoneId=`) | `curl "http://localhost:3000/api/traffic?zoneId=galgotias-university"` |
 | `GET` | `/api/traffic/intersections` | Monitored junction node list | `curl http://localhost:3000/api/traffic/intersections` |
 | `POST` | `/api/traffic/optimize` | Webster signal split optimization | `{"intersectionId": "pari-chowk", "vehicleDensity": 140, "queueLength": 60, "waitingTime": 4.0}` |
 | `POST` | `/api/traffic/simulation` | Switch simulation scenario | `{"mode": "rush_hour"}` |
@@ -95,12 +101,25 @@ All API endpoints return a uniform JSON envelope:
 
 ---
 
-## 7. Database Setup (Supabase / PostgreSQL)
+## 7. Geospatial Mobility Zones & Data Provenance
+
+NIU explicitly isolates physical road geography from real sensor feeds and synthetic demand models:
+
+- **Road Network**: Extracted via OpenStreetMap (Nominatim & Overpass API) or calibrated seed surveys (`roadNetwork: "real"`).
+- **Traffic Telemetry**: Generated deterministically using IRC highway capacity, diurnal hourly multipliers, and BPR speed-flow curves (`traffic: "simulated"`).
+- **Sensor Feeds**: Disclosed as disconnected (`liveSensors: "unavailable"`).
+
+For detailed geospatial architecture and mathematical models, see [NIU_GEOSPATIAL.md](file:///c:/Users/itsro/Downloads/niu-mobility-main/niu-mobility-main/NIU_GEOSPATIAL.md).
+
+---
+
+## 8. Database Setup (Supabase / PostgreSQL)
 
 When enabling Database Mode (`NIU_DATA_MODE=database`), run the provided migrations and seed data in your Supabase project:
 
-1. **Apply Schema Migration**: Execute [`supabase/migrations/20261005000000_initial_schema.sql`](file:///c:/Users/itsro/Downloads/niu-mobility-main/niu-mobility-main/supabase/migrations/20261005000000_initial_schema.sql) in the Supabase SQL Editor. Creates all 10 core tables (`intersections`, `traffic_snapshots`, `signal_timings`, `traffic_events`, `emergency_events`, `carpool_requests`, `carpool_matches`, `route_queries`, `impact_metrics`, `simulation_runs`) with foreign keys and performance indexes.
-2. **Apply Deterministic Seed Data**: Execute [`supabase/seed.sql`](file:///c:/Users/itsro/Downloads/niu-mobility-main/niu-mobility-main/supabase/seed.sql) to populate the baseline Greater Noida monitored junction network.
+1. **Apply Core Schema**: Execute [`supabase/migrations/20261005000000_initial_schema.sql`](file:///c:/Users/itsro/Downloads/niu-mobility-main/niu-mobility-main/supabase/migrations/20261005000000_initial_schema.sql). Creates the 10 core mobility tables.
+2. **Apply Geospatial Schema**: Execute [`supabase/migrations/20261005010000_geospatial_zones.sql`](file:///c:/Users/itsro/Downloads/niu-mobility-main/niu-mobility-main/supabase/migrations/20261005010000_geospatial_zones.sql). Creates `mobility_zones` and `road_networks` tables.
+3. **Apply Deterministic Seed Data**: Execute [`supabase/seed.sql`](file:///c:/Users/itsro/Downloads/niu-mobility-main/niu-mobility-main/supabase/seed.sql) to populate baseline Greater Noida monitored corridors.
 
 ---
 

@@ -1,6 +1,8 @@
 import { INITIAL_INTERSECTIONS } from '@/data/intersections';
 import { INITIAL_CITY_METRICS } from '@/data/traffic';
 import { Intersection, Direction } from '@/types/traffic';
+import { MobilityZone, GeoRoadSegment, MobilityIntersection } from '@/types/geospatial';
+import { SEEDED_MOBILITY_ZONES } from '@/data/mobility-zones-seed';
 import {
   IMobilityRepository,
   TrafficSnapshotRecord,
@@ -24,12 +26,26 @@ export class SimulationRepository implements IMobilityRepository {
   private routeQueries: RouteQueryRecord[];
   private carpoolRequests: CarpoolRequestRecord[];
   private simulationRuns: SimulationRunRecord[];
+  private mobilityZones: Map<string, MobilityZone>;
+  private roadNetworks: Map<string, { roads: GeoRoadSegment[]; intersections: MobilityIntersection[] }>;
 
   constructor() {
     this.intersections = JSON.parse(JSON.stringify(INITIAL_INTERSECTIONS));
     this.signalTimings = new Map();
     this.intersections.forEach((item) => {
       this.signalTimings.set(item.id, { ...item.signalTiming });
+    });
+
+    this.mobilityZones = new Map();
+    this.roadNetworks = new Map();
+
+    // Pre-populate with verified seeded zones
+    SEEDED_MOBILITY_ZONES.forEach((zone) => {
+      this.mobilityZones.set(zone.id, { ...zone });
+      this.roadNetworks.set(zone.id, {
+        roads: [...zone.roads],
+        intersections: [...zone.intersections],
+      });
     });
 
     this.snapshots = this.intersections.map((item) => ({
@@ -138,6 +154,44 @@ export class SimulationRepository implements IMobilityRepository {
       ...run,
       id: `sim-${Date.now()}`,
     });
+  }
+
+  public async saveMobilityZone(zone: MobilityZone): Promise<void> {
+    this.mobilityZones.set(zone.id, {
+      ...zone,
+      updatedAt: new Date().toISOString(),
+    });
+  }
+
+  public async getMobilityZone(id: string): Promise<MobilityZone | null> {
+    const found = this.mobilityZones.get(id);
+    return found ? { ...found } : null;
+  }
+
+  public async listMobilityZones(): Promise<MobilityZone[]> {
+    return Array.from(this.mobilityZones.values());
+  }
+
+  public async saveRoadNetwork(
+    zoneId: string,
+    network: { roads: GeoRoadSegment[]; intersections: MobilityIntersection[] }
+  ): Promise<void> {
+    this.roadNetworks.set(zoneId, {
+      roads: [...network.roads],
+      intersections: [...network.intersections],
+    });
+  }
+
+  public async getRoadNetwork(
+    zoneId: string
+  ): Promise<{ roads: GeoRoadSegment[]; intersections: MobilityIntersection[] } | null> {
+    const found = this.roadNetworks.get(zoneId);
+    return found
+      ? {
+          roads: [...found.roads],
+          intersections: [...found.intersections],
+        }
+      : null;
   }
 }
 

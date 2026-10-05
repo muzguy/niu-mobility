@@ -8,7 +8,9 @@ import { IntersectionPanel } from '@/components/traffic/intersection-panel';
 import { Activity, Gauge, Clock, Info, Layers, SlidersHorizontal } from 'lucide-react';
 import { getCongestionBadgeClass } from '@/lib/utils';
 import { SimulationTrafficMode } from '@/lib/simulation/simulation-engine';
-import { apiSetSimulationScenario } from '@/lib/api-client';
+import { LocationSelector } from '@/components/geospatial/location-selector';
+import { apiSetSimulationScenario, apiGetTrafficState } from '@/lib/api-client';
+import { Intersection } from '@/types/traffic';
 
 export default function TrafficPage() {
   const {
@@ -20,6 +22,47 @@ export default function TrafficPage() {
     setSimulationMode,
   } = useSimulation();
 
+  const [activeZoneId, setActiveZoneId] = React.useState('greater-noida-core');
+  const [zoneTelemetry, setZoneTelemetry] = React.useState<{
+    intersections: Intersection[];
+    metrics: typeof metrics;
+  } | null>(null);
+
+  React.useEffect(() => {
+    let isMounted = true;
+    async function loadZoneData() {
+      if (activeZoneId === 'greater-noida-core') {
+        setZoneTelemetry(null);
+        return;
+      }
+      try {
+        const res = await apiGetTrafficState(activeZoneId);
+        if (isMounted && res.success && res.data) {
+          setZoneTelemetry({
+            intersections: res.data.intersections,
+            metrics: res.data.metrics,
+          });
+        }
+      } catch {
+        // Fallback to local
+      }
+    }
+
+    loadZoneData();
+    return () => {
+      isMounted = false;
+    };
+  }, [activeZoneId, simulationMode]);
+
+  const [selectedNodeId, setSelectedNodeId] = React.useState<string | null>(null);
+
+  const activeIntersections = zoneTelemetry ? zoneTelemetry.intersections : intersections;
+  const activeMetrics = zoneTelemetry ? zoneTelemetry.metrics : metrics;
+  const currentSelected =
+    activeIntersections.find((i) => i.id === (selectedNodeId || selectedIntersection?.id)) ||
+    activeIntersections[0] ||
+    selectedIntersection;
+
   const handleScenarioChange = async (mode: SimulationTrafficMode) => {
     setSimulationMode(mode);
     try {
@@ -29,12 +72,16 @@ export default function TrafficPage() {
     }
   };
 
-  // Aggregate stats across monitored intersections
+  // Aggregate stats across active monitored intersections
   const avgQueue = Math.round(
-    intersections.reduce((acc, curr) => acc + curr.queueLengthMeters, 0) / intersections.length
+    activeIntersections.reduce((acc, curr) => acc + curr.queueLengthMeters, 0) /
+      (activeIntersections.length || 1)
   );
   const avgWait = Number(
-    (intersections.reduce((acc, curr) => acc + curr.waitingTimeMinutes, 0) / intersections.length).toFixed(1)
+    (
+      activeIntersections.reduce((acc, curr) => acc + curr.waitingTimeMinutes, 0) /
+      (activeIntersections.length || 1)
+    ).toFixed(1)
   );
 
   const scenarioModes: { id: SimulationTrafficMode; label: string; desc: string; icon: string }[] = [
@@ -63,9 +110,18 @@ export default function TrafficPage() {
         </div>
 
         <div className="text-xs font-mono text-slate-700 dark:text-slate-400 bg-slate-100 dark:bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 self-start sm:self-auto">
-          Monitored Nodes: <span className="text-emerald-600 dark:text-emerald-400 font-bold">{intersections.length} Intersections</span>
+          Monitored Nodes: <span className="text-emerald-600 dark:text-emerald-400 font-bold">{activeIntersections.length} Intersections</span>
         </div>
       </div>
+
+      {/* Geospatial Mobility Zone & OpenStreetMap Location Selector */}
+      <LocationSelector
+        activeZoneId={activeZoneId}
+        onZoneSelect={(id) => {
+          setActiveZoneId(id);
+          setSelectedNodeId(null);
+        }}
+      />
 
       {/* Simulation Scenario Driver Bar */}
       <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0f1523]/80 p-4 shadow-xs backdrop-blur-sm">
@@ -119,17 +175,17 @@ export default function TrafficPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard
           label="Traffic Load"
-          value={metrics.trafficLoadPct}
+          value={activeMetrics.trafficLoadPct}
           unit="%"
           change="Arterial congestion"
-          changeType={metrics.trafficLoadPct > 70 ? 'negative' : 'neutral'}
+          changeType={activeMetrics.trafficLoadPct > 70 ? 'negative' : 'neutral'}
           icon={Activity}
-          accentColor={metrics.trafficLoadPct > 70 ? 'rose' : 'amber'}
+          accentColor={activeMetrics.trafficLoadPct > 70 ? 'rose' : 'amber'}
         />
 
         <MetricCard
           label="Average Speed"
-          value={metrics.averageSpeedKmH}
+          value={activeMetrics.averageSpeedKmH}
           unit="km/h"
           change="Corridor velocity"
           changeType="positive"
@@ -187,12 +243,15 @@ export default function TrafficPage() {
         </div>
 
         <div className="flex flex-wrap gap-2">
-          {intersections.map((node) => {
-            const isSelected = selectedIntersection?.id === node.id;
+          {activeIntersections.map((node) => {
+            const isSelected = currentSelected?.id === node.id;
             return (
               <button
                 key={node.id}
-                onClick={() => selectIntersection(node.id)}
+                onClick={() => {
+                  setSelectedNodeId(node.id);
+                  selectIntersection(node.id);
+                }}
                 className={`px-3 py-2 rounded-lg text-xs font-medium border transition-all cursor-pointer ${
                   isSelected
                     ? 'bg-emerald-50 dark:bg-emerald-500/15 border-emerald-400 dark:border-emerald-500/50 text-emerald-700 dark:text-emerald-300 shadow-xs font-semibold'
@@ -208,9 +267,9 @@ export default function TrafficPage() {
       </div>
 
       {/* Active Selected Intersection Detailed Panel with OPTIMIZE SIGNAL button */}
-      {selectedIntersection && (
+      {currentSelected && (
         <div className="transition-all">
-          <IntersectionPanel intersection={selectedIntersection} />
+          <IntersectionPanel intersection={currentSelected} />
         </div>
       )}
 
@@ -222,7 +281,7 @@ export default function TrafficPage() {
               Monitored Intersections Network Telemetry
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              Live status across all 5 municipal corridor sensor nodes
+              Live status across all {activeIntersections.length} corridor sensor nodes
             </p>
           </div>
           <span className="text-[10px] font-mono text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-900 px-2 py-1 rounded border border-slate-200 dark:border-slate-800 self-start sm:self-auto">
@@ -244,9 +303,9 @@ export default function TrafficPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-mono">
-              {intersections.map((node) => {
+              {activeIntersections.map((node) => {
                 const badge = getCongestionBadgeClass(node.congestionLevel);
-                const isCurrent = selectedIntersection?.id === node.id;
+                const isCurrent = currentSelected?.id === node.id;
                 return (
                   <tr
                     key={node.id}
@@ -290,7 +349,10 @@ export default function TrafficPage() {
                     </td>
                     <td className="py-3 px-3 text-center">
                       <button
-                        onClick={() => selectIntersection(node.id)}
+                        onClick={() => {
+                          setSelectedNodeId(node.id);
+                          selectIntersection(node.id);
+                        }}
                         className={`px-3 py-1.5 rounded-lg text-xs font-sans font-medium transition-colors cursor-pointer ${
                           isCurrent
                             ? 'bg-emerald-600 text-white font-semibold'

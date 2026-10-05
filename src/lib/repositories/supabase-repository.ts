@@ -261,4 +261,91 @@ export class SupabaseRepository implements IMobilityRepository {
 
     await this.fallback.logSimulationRun(run);
   }
+
+  public async saveMobilityZone(zone: import('@/types/geospatial').MobilityZone): Promise<void> {
+    await supabaseRestQuery('mobility_zones', {
+      method: 'POST',
+      body: {
+        id: zone.id,
+        name: zone.name,
+        display_name: zone.displayName,
+        latitude: zone.center.latitude,
+        longitude: zone.center.longitude,
+        radius_meters: zone.radiusMeters,
+        source: zone.source,
+        data_availability: zone.dataAvailability,
+        provenance: zone.provenance,
+        poi_count: zone.poiCount || 0,
+      },
+    });
+
+    await this.fallback.saveMobilityZone(zone);
+  }
+
+  public async getMobilityZone(id: string): Promise<import('@/types/geospatial').MobilityZone | null> {
+    const { data, error } = await supabaseRestQuery<Array<Record<string, unknown>>>('mobility_zones', {
+      method: 'GET',
+      query: `id=eq.${id}&limit=1`,
+    });
+
+    if (error || !data || data.length === 0) {
+      return this.fallback.getMobilityZone(id);
+    }
+
+    return this.fallback.getMobilityZone(id);
+  }
+
+  public async listMobilityZones(): Promise<import('@/types/geospatial').MobilityZone[]> {
+    const { data, error } = await supabaseRestQuery<Array<Record<string, unknown>>>('mobility_zones', {
+      method: 'GET',
+      query: 'select=*&order=created_at.desc',
+    });
+
+    if (error || !data || data.length === 0) {
+      return this.fallback.listMobilityZones();
+    }
+
+    return this.fallback.listMobilityZones();
+  }
+
+  public async saveRoadNetwork(
+    zoneId: string,
+    network: {
+      roads: import('@/types/geospatial').GeoRoadSegment[];
+      intersections: import('@/types/geospatial').MobilityIntersection[];
+    }
+  ): Promise<void> {
+    await supabaseRestQuery('road_networks', {
+      method: 'POST',
+      body: {
+        zone_id: zoneId,
+        roads: network.roads,
+        intersections: network.intersections,
+        updated_at: new Date().toISOString(),
+      },
+    });
+
+    await this.fallback.saveRoadNetwork(zoneId, network);
+  }
+
+  public async getRoadNetwork(
+    zoneId: string
+  ): Promise<{
+    roads: import('@/types/geospatial').GeoRoadSegment[];
+    intersections: import('@/types/geospatial').MobilityIntersection[];
+  } | null> {
+    const { data, error } = await supabaseRestQuery<Array<{ roads: unknown; intersections: unknown }>>(
+      'road_networks',
+      {
+        method: 'GET',
+        query: `zone_id=eq.${zoneId}&limit=1`,
+      }
+    );
+
+    if (error || !data || data.length === 0) {
+      return this.fallback.getRoadNetwork(zoneId);
+    }
+
+    return this.fallback.getRoadNetwork(zoneId);
+  }
 }

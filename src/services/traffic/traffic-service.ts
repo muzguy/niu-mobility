@@ -24,7 +24,7 @@ function getBackendSimulationState() {
 export class TrafficService {
   private repo = getRepository();
 
-  public async getTrafficState(): Promise<{
+  public async getTrafficState(zoneId?: string): Promise<{
     simulationMode: SimulationTrafficMode;
     metrics: CityMobilityMetrics;
     intersections: Intersection[];
@@ -33,8 +33,38 @@ export class TrafficService {
     averageQueueMeters: number;
     averageWaitMinutes: number;
     timestamp: string;
+    zoneId?: string;
+    zoneName?: string;
+    dataAvailability?: import('@/types/geospatial').DataAvailability;
+    provenance?: import('@/types/geospatial').DataProvenance;
   }> {
     const simState = getBackendSimulationState();
+
+    // If a specific zone is requested (e.g. galgotias-university, dankaur)
+    if (zoneId && zoneId !== 'greater-noida-core' && zoneId !== 'default') {
+      const { locationService } = await import('../location/location-service');
+      const zoneState = await locationService.getZoneTrafficState(zoneId, {
+        scenario: simState.simulationMode,
+      });
+
+      if (zoneState) {
+        return {
+          simulationMode: simState.simulationMode,
+          metrics: zoneState.metrics,
+          intersections: zoneState.intersections,
+          activeCorridor: zoneState.activeCorridor,
+          totalVehiclesApproaching: zoneState.totalVehiclesApproaching,
+          averageQueueMeters: zoneState.averageQueueMeters,
+          averageWaitMinutes: zoneState.averageWaitMinutes,
+          timestamp: zoneState.timestamp,
+          zoneId: zoneState.zoneId,
+          zoneName: zoneState.zoneName,
+          dataAvailability: zoneState.dataAvailability,
+          provenance: zoneState.provenance,
+        };
+      }
+    }
+
     const intersections = await this.repo.getIntersections();
 
     const totalVehiclesApproaching = intersections.reduce((sum, item) => sum + item.vehicleCount, 0);
@@ -56,6 +86,20 @@ export class TrafficService {
       averageQueueMeters,
       averageWaitMinutes,
       timestamp: new Date().toISOString(),
+      zoneId: 'greater-noida-core',
+      zoneName: 'Greater Noida Core Grid',
+      dataAvailability: {
+        roadNetwork: 'real',
+        traffic: 'simulated',
+        liveSensors: 'unavailable',
+      },
+      provenance: {
+        source: 'simulation',
+        confidence: 0.95,
+        freshness: 'calibrated_demo_grid',
+        notes: 'Greater Noida 5-junction calibrated baseline simulation; no live sensor connected.',
+        provider: 'NIU Greater Noida Telemetry Provider',
+      },
     };
   }
 

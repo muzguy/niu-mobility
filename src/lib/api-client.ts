@@ -57,7 +57,8 @@ export async function apiCheckHealth() {
 /**
  * Traffic state
  */
-export async function apiGetTrafficState() {
+export async function apiGetTrafficState(zoneId?: string) {
+  const url = zoneId ? `/api/traffic?zoneId=${encodeURIComponent(zoneId)}` : '/api/traffic';
   return fetchApi<{
     simulationMode: SimulationTrafficMode;
     metrics: CityMobilityMetrics;
@@ -67,7 +68,11 @@ export async function apiGetTrafficState() {
     averageQueueMeters: number;
     averageWaitMinutes: number;
     timestamp: string;
-  }>('/api/traffic');
+    zoneId?: string;
+    zoneName?: string;
+    dataAvailability?: import('@/types/geospatial').DataAvailability;
+    provenance?: import('@/types/geospatial').DataProvenance;
+  }>(url);
 }
 
 /**
@@ -170,3 +175,45 @@ export async function apiTriggerEmergency(action: 'activate' | 'cancel' | 'toggl
     body: JSON.stringify({ action, vehicleId }),
   });
 }
+
+/**
+ * Location search via OpenStreetMap API
+ */
+export async function apiSearchLocations(query: string, limit = 5) {
+  return fetchApi<{
+    query: string;
+    count: number;
+    results: import('@/types/geospatial').LocationSearchResult[];
+  }>(`/api/location/search?q=${encodeURIComponent(query)}&limit=${limit}`);
+}
+
+/**
+ * List registered Mobility Zones
+ */
+export async function apiGetMobilityZones() {
+  return fetchApi<{
+    count: number;
+    zones: import('@/types/geospatial').MobilityZone[];
+  }>('/api/location/zone');
+}
+
+/**
+ * Get single Mobility Zone details
+ */
+export async function apiGetMobilityZone(id: string) {
+  return fetchApi<import('@/types/geospatial').MobilityZone>(`/api/location/zone/${encodeURIComponent(id)}`);
+}
+
+/**
+ * Get Zone-specific location-aware traffic state
+ */
+export async function apiGetZoneTraffic(zoneId: string, options?: { hour?: number; scenario?: string }) {
+  const query = new URLSearchParams();
+  if (options?.hour !== undefined) query.set('hour', options.hour.toString());
+  if (options?.scenario) query.set('scenario', options.scenario);
+  const qStr = query.toString() ? `?${query.toString()}` : '';
+  return fetchApi<import('@/types/geospatial').ZoneTrafficTelemetry>(
+    `/api/location/zone/${encodeURIComponent(zoneId)}/traffic${qStr}`
+  );
+}
+
