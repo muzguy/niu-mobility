@@ -4,11 +4,22 @@ import type { StyleSpecification } from 'maplibre-gl';
  * Returns the MapLibre style specification or URL for the current theme.
  * Respects NEXT_PUBLIC_MAP_STYLE_URL if configured, otherwise falls back to
  * high-performance CARTO Dark Matter / Positron raster basemaps with OSM attribution.
+ *
+ * Appends the CARTO API key (process.env.NEXT_PUBLIC_CARTO_API_KEY) via the `key` query
+ * parameter to authorize tile requests and avoid "API KEY REQUIRED" watermarks.
  */
 export function getMapStyle(isDark: boolean): string | StyleSpecification {
+  const rawCartoKey = process.env.NEXT_PUBLIC_CARTO_API_KEY;
+  const cartoKey = rawCartoKey ? encodeURIComponent(rawCartoKey.trim()) : '';
+  const keyParam = cartoKey ? `?key=${cartoKey}` : '';
+
   // Configurable external vector/raster style via environment variable
   if (process.env.NEXT_PUBLIC_MAP_STYLE_URL) {
-    return process.env.NEXT_PUBLIC_MAP_STYLE_URL;
+    const customStyle = process.env.NEXT_PUBLIC_MAP_STYLE_URL;
+    if (cartoKey && customStyle.includes('{key}')) {
+      return customStyle.replace('{key}', cartoKey);
+    }
+    return customStyle;
   }
 
   if (isDark) {
@@ -19,10 +30,10 @@ export function getMapStyle(isDark: boolean): string | StyleSpecification {
         'carto-dark': {
           type: 'raster',
           tiles: [
-            'https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png',
-            'https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png',
-            'https://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png',
-            'https://d.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png',
+            `https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png${keyParam}`,
+            `https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png${keyParam}`,
+            `https://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png${keyParam}`,
+            `https://d.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png${keyParam}`,
           ],
           tileSize: 256,
           attribution:
@@ -58,10 +69,10 @@ export function getMapStyle(isDark: boolean): string | StyleSpecification {
       'carto-light': {
         type: 'raster',
         tiles: [
-          'https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png',
-          'https://b.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png',
-          'https://c.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png',
-          'https://d.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png',
+          `https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png${keyParam}`,
+          `https://b.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png${keyParam}`,
+          `https://c.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png${keyParam}`,
+          `https://d.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png${keyParam}`,
         ],
         tileSize: 256,
         attribution:

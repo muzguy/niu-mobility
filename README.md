@@ -152,12 +152,20 @@ The project runs completely out-of-the-box in local simulation mode without exte
 # Operational Data Mode ('simulation' | 'database')
 NIU_DATA_MODE=simulation
 
+# CARTO Basemap API Key (Required for MapLibre map basemap tiles)
+# In development: add to .env.local
+# In production (Vercel): add under Project -> Settings -> Environment Variables
+NEXT_PUBLIC_CARTO_API_KEY=your_carto_api_key_here
+
+# Optional Custom Map Style URL (e.g. custom vector tileset / style JSON)
+NEXT_PUBLIC_MAP_STYLE_URL=
+
 # Supabase Persistence (Required only when NIU_DATA_MODE=database)
 NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 
-# Future Integrations
+# Future Integrations (Optional / Alternative Providers)
 NEXT_PUBLIC_MAPBOX_TOKEN=
 NEXT_PUBLIC_TRAFFIC_API_KEY=
 NEXT_PUBLIC_ML_SERVICE_URL=

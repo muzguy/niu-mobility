@@ -350,6 +350,22 @@ describe('NIU Phase 8 — Geospatial Mobility Map Architecture Tests', () => {
       assert.ok(lightStyle.sources['carto-light'], 'Light style should define carto-light source');
     });
 
+    test('getMapStyle correctly appends key parameter when NEXT_PUBLIC_CARTO_API_KEY is configured', () => {
+      const originalKey = process.env.NEXT_PUBLIC_CARTO_API_KEY;
+      try {
+        process.env.NEXT_PUBLIC_CARTO_API_KEY = 'test-carto-auth-token';
+        const dark = getMapStyle(true) as StyleSpecification;
+        const rasterSource = dark.sources['carto-dark'] as { tiles: string[] };
+        assert.ok(rasterSource.tiles[0].includes('?key=test-carto-auth-token'));
+
+        const light = getMapStyle(false) as StyleSpecification;
+        const lightRaster = light.sources['carto-light'] as { tiles: string[] };
+        assert.ok(lightRaster.tiles[0].includes('?key=test-carto-auth-token'));
+      } finally {
+        process.env.NEXT_PUBLIC_CARTO_API_KEY = originalKey;
+      }
+    });
+
     test('isWebGLSupported handles environments without window/document without crashing', () => {
       // In Node environment, window is undefined
       const supported = isWebGLSupported();
