@@ -1,7 +1,6 @@
-'use client';
-
 import React from 'react';
 import { Intersection } from '@/types/traffic';
+import { useTheme } from '@/context/theme-context';
 
 interface IntersectionMarkerProps {
   intersection: Intersection;
@@ -16,7 +15,8 @@ export function IntersectionMarker({
   showSignalState,
   onSelect,
 }: IntersectionMarkerProps) {
-  const { coordinates, shortName, congestionLevel, vehicleCount, waitingTimeMinutes, isEmergencyPrioritized } =
+  const { isDark } = useTheme();
+  const { coordinates, shortName, congestionLevel, vehicleCount, waitingTimeMinutes, isEmergencyPrioritized, lastOptimizedAt } =
     intersection;
 
   // Congestion color
@@ -28,6 +28,14 @@ export function IntersectionMarker({
       : congestionLevel === 'moderate'
       ? '#f59e0b' // Amber
       : '#10b981'; // Emerald
+
+  const nodeFill = isDark ? '#0b0f19' : '#ffffff';
+  const pillFill = isDark ? '#090d16' : '#ffffff';
+  const pillStroke = isSelected
+    ? (isDark ? '#10b981' : '#059669')
+    : (isDark ? '#1e293d' : '#cbd5e1');
+  const titleColor = isDark ? '#f1f5f9' : '#0f172a';
+  const subtextColor = isDark ? '#94a3b8' : '#475569';
 
   return (
     <g
@@ -62,7 +70,7 @@ export function IntersectionMarker({
           cy={coordinates.y}
           r={26}
           fill="none"
-          stroke="#10b981"
+          stroke={isDark ? '#10b981' : '#059669'}
           strokeWidth="2"
           strokeDasharray="4 3"
           className="animate-spin"
@@ -75,7 +83,7 @@ export function IntersectionMarker({
         cx={coordinates.x}
         cy={coordinates.y}
         r={18}
-        fill="#0b0f19"
+        fill={nodeFill}
         stroke={color}
         strokeWidth={isSelected ? 3 : 2}
         className="transition-colors duration-300 drop-shadow-md"
@@ -90,19 +98,28 @@ export function IntersectionMarker({
         className={isEmergencyPrioritized ? 'animate-pulse' : ''}
       />
 
+      {/* Optimized Badge Indicator */}
+      {lastOptimizedAt && !isEmergencyPrioritized && (
+        <g transform={`translate(${coordinates.x - 18}, ${coordinates.y - 18})`}>
+          <circle cx={0} cy={0} r={6} fill={isDark ? '#064e3b' : '#d1fae5'} stroke="#10b981" strokeWidth="1" />
+          <path d="M -3 0 L -1 2 L 3 -2" fill="none" stroke="#10b981" strokeWidth="1.5" strokeLinecap="round" />
+        </g>
+      )}
+
       {/* Label Box (Card style) */}
       <g transform={`translate(${coordinates.x}, ${coordinates.y + 24})`}>
         {/* Background pill */}
         <rect
-          x={-60}
+          x={-62}
           y={0}
-          width={120}
+          width={124}
           height={32}
-          rx={5}
-          fill="#090d16"
-          fillOpacity="0.92"
-          stroke={isSelected ? '#10b981' : '#1e293b'}
-          strokeWidth="1"
+          rx={6}
+          fill={pillFill}
+          fillOpacity={isDark ? 0.94 : 0.98}
+          stroke={pillStroke}
+          strokeWidth="1.2"
+          filter={isDark ? undefined : 'drop-shadow(0 1px 2px rgba(0,0,0,0.06))'}
         />
 
         {/* Node Name */}
@@ -110,7 +127,7 @@ export function IntersectionMarker({
           x={0}
           y={14}
           textAnchor="middle"
-          fill="#f1f5f9"
+          fill={titleColor}
           fontSize="10"
           fontWeight="600"
           fontFamily="system-ui, sans-serif"
@@ -123,7 +140,7 @@ export function IntersectionMarker({
           x={0}
           y={26}
           textAnchor="middle"
-          fill="#94a3b8"
+          fill={subtextColor}
           fontSize="8.5"
           fontFamily="monospace"
         >
@@ -134,7 +151,7 @@ export function IntersectionMarker({
       {/* Signal Mini Indicator Badge if enabled */}
       {showSignalState && (
         <g transform={`translate(${coordinates.x + 14}, ${coordinates.y - 18})`}>
-          <circle cx={0} cy={0} r={6} fill="#090d16" stroke="#334155" strokeWidth="1" />
+          <circle cx={0} cy={0} r={6} fill={nodeFill} stroke={isDark ? '#334155' : '#cbd5e1'} strokeWidth="1" />
           <circle
             cx={0}
             cy={0}

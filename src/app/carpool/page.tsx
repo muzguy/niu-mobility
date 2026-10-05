@@ -36,23 +36,23 @@ export default function CarpoolPage() {
   return (
     <div className="space-y-6">
       {/* Title Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800/80 pb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800/80 pb-4">
         <div>
           <div className="flex items-center gap-2.5">
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-100">
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
               Carpool Matching Network
             </h1>
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20 font-semibold">
               DETERMINISTIC MATCHER
             </span>
           </div>
-          <p className="text-xs sm:text-sm text-slate-400 mt-1">
+          <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 mt-1">
             Pairing Greater Noida commuters along shared corridors to eliminate redundant solo private vehicle trips
           </p>
         </div>
 
-        <div className="text-xs font-mono text-slate-400 bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-800 self-start sm:self-auto">
-          Active Carpoolers: <span className="text-emerald-400 font-bold">142 Drivers</span>
+        <div className="text-xs font-mono text-slate-700 dark:text-slate-400 bg-slate-100 dark:bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 self-start sm:self-auto">
+          Active Carpoolers: <span className="text-emerald-600 dark:text-emerald-400 font-bold">142 Drivers</span>
         </div>
       </div>
 
@@ -103,10 +103,10 @@ export default function CarpoolPage() {
       </div>
 
       {/* Algorithmic Integrity Note */}
-      <div className="p-4 rounded-xl border border-slate-800 bg-slate-900/40 flex items-start gap-3 text-xs text-slate-400">
-        <Info className="w-4 h-4 text-slate-500 shrink-0 mt-0.5" />
+      <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/40 flex items-start gap-3 text-xs text-slate-500 dark:text-slate-400">
+        <Info className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
         <p className="text-[11px] leading-relaxed">
-          <strong>DETERMINISTIC ALGORITHM NOTICE:</strong> Compatibility matching uses weighted Euclidean proximity, departure window decay, and waypoint intersection analysis. It avoids opaque generative AI hallucinations. In Phase 9, Supabase PostGIS spatial indices will power sub-millisecond route matching.
+          <strong className="text-slate-700 dark:text-slate-300">DETERMINISTIC ALGORITHM NOTICE:</strong> Compatibility matching uses weighted Euclidean proximity, departure window decay, and waypoint intersection analysis. It avoids opaque generative AI hallucinations. In Phase 9, Supabase PostGIS spatial indices will power sub-millisecond route matching.
         </p>
       </div>
     </div>

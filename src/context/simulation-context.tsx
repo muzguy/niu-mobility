@@ -4,6 +4,8 @@ import React, { createContext, useContext, useState, useCallback, useMemo } from
 import {
   createInitialSimulationState,
   SimulationState,
+  SimulationTrafficMode,
+  setSimulationTrafficMode,
   toggleEmergencySimulation,
   toggleRushHourState,
 } from '@/lib/simulation/simulation-engine';
@@ -20,9 +22,11 @@ interface SimulationContextValue {
   emergencyCorridor: EmergencyCorridor;
   selectedIntersection: Intersection | null;
   isRushHour: boolean;
+  simulationMode: SimulationTrafficMode;
   selectIntersection: (id: string | null) => void;
   toggleRushHour: () => void;
   triggerEmergency: () => void;
+  setSimulationMode: (mode: SimulationTrafficMode) => void;
   applySignalOptimization: (intersectionId: string, newTiming: Record<Direction, number>) => void;
 }
 
@@ -41,6 +45,10 @@ export function SimulationProvider({ children }: { children: React.ReactNode }) 
 
   const triggerEmergency = useCallback(() => {
     setState((prev) => toggleEmergencySimulation(prev));
+  }, []);
+
+  const setSimulationMode = useCallback((mode: SimulationTrafficMode) => {
+    setState((prev) => setSimulationTrafficMode(prev, mode));
   }, []);
 
   const applySignalOptimization = useCallback(
@@ -107,9 +115,11 @@ export function SimulationProvider({ children }: { children: React.ReactNode }) 
       emergencyCorridor: state.emergencyCorridor,
       selectedIntersection,
       isRushHour: state.isRushHour,
+      simulationMode: state.simulationMode,
       selectIntersection,
       toggleRushHour,
       triggerEmergency,
+      setSimulationMode,
       applySignalOptimization,
     }),
     [
@@ -118,6 +128,7 @@ export function SimulationProvider({ children }: { children: React.ReactNode }) 
       selectIntersection,
       toggleRushHour,
       triggerEmergency,
+      setSimulationMode,
       applySignalOptimization,
     ]
   );

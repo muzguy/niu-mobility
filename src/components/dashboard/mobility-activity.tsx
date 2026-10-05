@@ -24,34 +24,36 @@ export function MobilityActivity() {
   };
 
   return (
-    <div className="rounded-xl border border-slate-800 bg-[#0f1523]/80 p-5 backdrop-blur-sm h-full flex flex-col">
+    <div className="rounded-xl border border-slate-200/90 dark:border-slate-800 bg-white/90 dark:bg-[#0f1523]/80 p-5 backdrop-blur-sm h-full flex flex-col shadow-xs dark:shadow-none transition-colors duration-150">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
-          <h2 className="text-base font-semibold text-slate-100">Mobility Event Stream</h2>
+          <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">Mobility Event Stream</h2>
           <span className="relative flex h-2 w-2">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
             <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
           </span>
         </div>
-        <span className="text-[10px] font-mono text-slate-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
+        <span className="text-[10px] font-mono text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-900 px-2 py-0.5 rounded border border-slate-200 dark:border-slate-800">
           SIMULATED LOG
         </span>
       </div>
 
-      <div className="space-y-3 overflow-y-auto flex-1 pr-1 max-h-[360px]">
+      <div className="space-y-2.5 overflow-y-auto flex-1 pr-1 max-h-[360px]">
         {events.map((evt) => (
           <div
             key={evt.id}
-            className="p-3 rounded-lg border border-slate-800/80 bg-slate-900/40 text-xs space-y-1 hover:border-slate-700 transition-colors"
+            className="p-3 rounded-lg border border-slate-200/80 dark:border-slate-800/80 bg-slate-50/70 dark:bg-slate-900/40 text-xs space-y-1 hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <div className="p-1 rounded bg-slate-800/80">{getCategoryIcon(evt.category)}</div>
-                <span className="font-semibold text-slate-200">{evt.title}</span>
+                <div className="p-1 rounded bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/60 shadow-2xs">
+                  {getCategoryIcon(evt.category)}
+                </div>
+                <span className="font-semibold text-slate-900 dark:text-slate-200">{evt.title}</span>
               </div>
-              <span className="text-[10px] text-slate-500 font-mono">{evt.timestamp}</span>
+              <span className="text-[10px] text-slate-500 dark:text-slate-500 font-mono">{evt.timestamp}</span>
             </div>
-            <p className="text-slate-400 text-[11px] leading-relaxed pl-7">{evt.description}</p>
+            <p className="text-slate-600 dark:text-slate-400 text-[11px] leading-relaxed pl-7">{evt.description}</p>
           </div>
         ))}
       </div>

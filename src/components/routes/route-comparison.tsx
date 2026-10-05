@@ -39,15 +39,15 @@ export function RouteComparison() {
   return (
     <div className="space-y-6">
       {/* Route Query Selector */}
-      <div className="rounded-xl border border-slate-800 bg-[#0f1523]/90 p-5 backdrop-blur-sm">
+      <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0f1523]/90 p-5 shadow-xs backdrop-blur-sm">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
           <div>
-            <h2 className="text-base font-semibold text-slate-100">Smart Route Comparison</h2>
-            <p className="text-xs text-slate-400 mt-0.5">
+            <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">Smart Route Comparison</h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
               Multi-criteria trajectory engine contrasting travel time vs. environmental footprint
             </p>
           </div>
-          <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20 self-start sm:self-auto">
+          <span className="text-[10px] font-mono text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20 font-semibold self-start sm:self-auto">
             SIMULATED ROUTE PROVIDER
           </span>
         </div>
@@ -55,13 +55,13 @@ export function RouteComparison() {
         <div className="grid grid-cols-1 md:grid-cols-11 gap-3 items-center">
           {/* Origin */}
           <div className="md:col-span-5">
-            <label className="block text-[11px] font-medium text-slate-400 mb-1">Origin Node</label>
+            <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1">Origin Node</label>
             <div className="relative">
-              <MapPin className="absolute left-3 top-2.5 w-4 h-4 text-emerald-400" />
+              <MapPin className="absolute left-3 top-2.5 w-4 h-4 text-emerald-600 dark:text-emerald-400" />
               <select
                 value={origin}
                 onChange={(e) => setOrigin(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 bg-slate-900 border border-slate-800 rounded-lg text-xs text-slate-200 focus:outline-none focus:border-emerald-500 transition-colors cursor-pointer"
+                className="w-full pl-9 pr-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:border-emerald-500 transition-colors cursor-pointer"
               >
                 {SECTORS.map((s) => (
                   <option key={`orig-${s}`} value={s} disabled={s === destination}>
@@ -78,7 +78,7 @@ export function RouteComparison() {
               onClick={handleSwap}
               title="Swap Origin and Destination"
               aria-label="Swap nodes"
-              className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors"
+              className="p-2 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors cursor-pointer"
             >
               <ArrowRightLeft className="w-3.5 h-3.5" />
             </button>
@@ -86,13 +86,13 @@ export function RouteComparison() {
 
           {/* Destination */}
           <div className="md:col-span-5">
-            <label className="block text-[11px] font-medium text-slate-400 mb-1">Destination Node</label>
+            <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1">Destination Node</label>
             <div className="relative">
-              <MapPin className="absolute left-3 top-2.5 w-4 h-4 text-cyan-400" />
+              <MapPin className="absolute left-3 top-2.5 w-4 h-4 text-cyan-600 dark:text-cyan-400" />
               <select
                 value={destination}
                 onChange={(e) => setDestination(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 bg-slate-900 border border-slate-800 rounded-lg text-xs text-slate-200 focus:outline-none focus:border-cyan-500 transition-colors cursor-pointer"
+                className="w-full pl-9 pr-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:border-cyan-500 transition-colors cursor-pointer"
               >
                 {SECTORS.map((s) => (
                   <option key={`dest-${s}`} value={s} disabled={s === origin}>
@@ -107,23 +107,23 @@ export function RouteComparison() {
 
       {/* Selected Route Highlights Banner */}
       {selectedRoute && (
-        <div className="p-4 rounded-xl border border-cyan-500/30 bg-cyan-950/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+        <div className="p-4 rounded-xl border border-cyan-300 dark:border-cyan-500/30 bg-cyan-50/70 dark:bg-cyan-950/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-xs">
           <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-lg bg-cyan-500/10 border border-cyan-500/30 text-cyan-400">
+            <div className="p-2 rounded-lg bg-cyan-500/10 border border-cyan-500/30 text-cyan-600 dark:text-cyan-400">
               <RouteIcon className="w-4 h-4" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="font-bold text-slate-100 font-mono">{selectedRoute.title}</span>
-                <span className="text-[10px] text-cyan-300 font-mono">• {selectedRoute.badge}</span>
+                <span className="font-bold text-slate-900 dark:text-slate-100 font-mono">{selectedRoute.title}</span>
+                <span className="text-[10px] text-cyan-700 dark:text-cyan-300 font-mono">• {selectedRoute.badge}</span>
               </div>
-              <p className="text-slate-400 text-[11px] mt-0.5">
+              <p className="text-slate-600 dark:text-slate-400 text-[11px] mt-0.5">
                 Estimated Transit: {selectedRoute.etaMinutes} min | CO2: {selectedRoute.estimatedCo2Kg} kg | Distance: {selectedRoute.distanceKm} km
               </p>
             </div>
           </div>
 
-          <div className="text-[11px] font-mono text-slate-400 bg-slate-900/80 px-3 py-1.5 rounded-lg border border-slate-800 self-start sm:self-auto">
+          <div className="text-[11px] font-mono text-slate-700 dark:text-slate-400 bg-white/90 dark:bg-slate-900/80 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 self-start sm:self-auto font-medium">
             {selectedRoute.type === 'greenest'
               ? '🌿 Lowest Carbon Corridor: Saves ~1.48 kg CO2 vs Fastest'
               : selectedRoute.type === 'balanced'
@@ -146,12 +146,12 @@ export function RouteComparison() {
       </div>
 
       {/* Future Mapbox Integration Disclaimer */}
-      <div className="p-4 rounded-xl border border-slate-800 bg-slate-900/40 flex items-start gap-3 text-xs text-slate-400">
-        <Info className="w-4 h-4 text-slate-500 shrink-0 mt-0.5" />
+      <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/40 flex items-start gap-3 text-xs text-slate-500 dark:text-slate-400">
+        <Info className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
         <div className="space-y-1">
-          <p className="font-medium text-slate-300">Phase 1 Simulated Routing Provider Active</p>
-          <p className="text-[11px] text-slate-500 leading-relaxed">
-            All route calculations, travel durations, and carbon emissions represent calibrated models based on Greater Noida urban geometry. The architecture is decoupled via the <code className="text-emerald-400 font-mono">IRouteProvider</code> interface, ready for future drop-in Mapbox Directions or OSRM vector routing in Phase 9.
+          <p className="font-medium text-slate-800 dark:text-slate-300">Phase 1 Simulated Routing Provider Active</p>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+            All route calculations, travel durations, and carbon emissions represent calibrated models based on Greater Noida urban geometry. The architecture is decoupled via the <code className="text-emerald-600 dark:text-emerald-400 font-mono">IRouteProvider</code> interface, ready for future drop-in Mapbox Directions or OSRM vector routing in Phase 9.
           </p>
         </div>
       </div>

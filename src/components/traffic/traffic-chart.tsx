@@ -1,5 +1,3 @@
-'use client';
-
 import React from 'react';
 import {
   AreaChart,
@@ -11,27 +9,30 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { HOURLY_TRAFFIC_DATA } from '@/data/traffic';
+import { useTheme } from '@/context/theme-context';
 
 interface TrafficChartProps {
   height?: number;
 }
 
 export function TrafficChart({ height = 280 }: TrafficChartProps) {
+  const { isDark } = useTheme();
+
   return (
     <div className="w-full h-full">
       <div className="flex items-center justify-between mb-3 text-xs">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
-            <span className="text-slate-300">Traffic Load (%)</span>
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+            <span className="text-slate-700 dark:text-slate-300 font-medium">Traffic Load (%)</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-cyan-400"></span>
-            <span className="text-slate-300">Avg Speed (km/h)</span>
+            <span className="w-2.5 h-2.5 rounded-full bg-cyan-500"></span>
+            <span className="text-slate-700 dark:text-slate-300 font-medium">Avg Speed (km/h)</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-amber-400"></span>
-            <span className="text-slate-300">Delay (min)</span>
+            <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
+            <span className="text-slate-700 dark:text-slate-300 font-medium">Delay (min)</span>
           </div>
         </div>
 
@@ -51,27 +52,28 @@ export function TrafficChart({ height = 280 }: TrafficChartProps) {
                 <stop offset="95%" stopColor="#06b6d4" stopOpacity={0.0} />
               </linearGradient>
             </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" opacity={0.6} />
+            <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#1e293b' : '#e2e8f0'} opacity={0.8} />
             <XAxis
               dataKey="time"
-              stroke="#64748b"
+              stroke={isDark ? '#64748b' : '#94a3b8'}
               fontSize={10}
               tickLine={false}
-              axisLine={{ stroke: '#1e293b' }}
+              axisLine={{ stroke: isDark ? '#1e293b' : '#e2e8f0' }}
             />
             <YAxis
-              stroke="#64748b"
+              stroke={isDark ? '#64748b' : '#94a3b8'}
               fontSize={10}
               tickLine={false}
-              axisLine={{ stroke: '#1e293b' }}
+              axisLine={{ stroke: isDark ? '#1e293b' : '#e2e8f0' }}
             />
             <Tooltip
               contentStyle={{
-                backgroundColor: '#0f1523',
-                borderColor: '#334155',
+                backgroundColor: isDark ? '#0f1523' : '#ffffff',
+                borderColor: isDark ? '#334155' : '#cbd5e1',
                 borderRadius: '8px',
                 fontSize: '11px',
-                color: '#f1f5f9',
+                color: isDark ? '#f1f5f9' : '#0f172a',
+                boxShadow: isDark ? 'none' : '0 4px 6px -1px rgba(0, 0, 0, 0.08)',
               }}
             />
             <Area

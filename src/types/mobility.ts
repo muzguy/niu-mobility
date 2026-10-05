@@ -43,3 +43,24 @@ export interface SimulationEvent {
   description: string;
   severity: 'info' | 'warning' | 'success' | 'alert';
 }
+
+/**
+ * Decoupled provider interface for NIU Mobility Map.
+ * Allows swapping the presentation layer (SVG vector grid vs. future Mapbox/MapLibre)
+ * without rewriting the traffic computation or simulation engines.
+ */
+export interface IMobilityMapAdapterProps {
+  intersections: import('./traffic').Intersection[];
+  roadSegments: RoadSegment[];
+  selectedIntersectionId: string | null;
+  onSelectIntersection: (id: string) => void;
+  emergencyCorridor: import('./traffic').EmergencyCorridor;
+  simulationMode: 'normal' | 'rush_hour' | 'emergency' | 'optimized';
+  isRushHour: boolean;
+  zoom: number;
+  showTrafficFlow: boolean;
+  showSignalStates: boolean;
+  theme: 'dark' | 'light';
+  heightClass?: string;
+}
+

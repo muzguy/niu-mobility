@@ -1,12 +1,11 @@
-'use client';
-
 import React, { useState, useEffect } from 'react';
 import { ROAD_SEGMENTS } from '@/data/intersections';
 import { useSimulation } from '@/context/simulation-context';
+import { useTheme } from '@/context/theme-context';
 import { IntersectionMarker } from './intersection-marker';
 import { MapControls } from './map-controls';
 import { MapLegend } from './map-legend';
-import { Ambulance } from 'lucide-react';
+import { Ambulance, Sparkles } from 'lucide-react';
 
 interface MobilityMapProps {
   onSelectIntersection?: (id: string) => void;
@@ -19,8 +18,9 @@ export function MobilityMap({ onSelectIntersection, heightClass = 'h-[540px]' }:
     selectedIntersection,
     selectIntersection,
     emergencyCorridor,
-    isRushHour,
+    simulationMode,
   } = useSimulation();
+  const { isDark } = useTheme();
 
   const [zoom, setZoom] = useState<number>(1.0);
   const [showTrafficFlow, setShowTrafficFlow] = useState<boolean>(true);
@@ -65,31 +65,45 @@ export function MobilityMap({ onSelectIntersection, heightClass = 'h-[540px]' }:
   };
 
   const getSegmentStroke = (congestion: 'low' | 'moderate' | 'severe') => {
+    if (simulationMode === 'optimized') {
+      return isDark ? '#10b981' : '#059669';
+    }
     switch (congestion) {
       case 'low':
-        return '#10b981';
+        return isDark ? '#10b981' : '#059669';
       case 'moderate':
-        return '#f59e0b';
+        return isDark ? '#f59e0b' : '#d97706';
       case 'severe':
-        return '#ef4444';
+        return isDark ? '#ef4444' : '#dc2626';
     }
   };
 
+  const canvasBg = isDark ? '#080c14' : '#f8fafc';
+  const gridStroke = isDark ? '#141c2e' : '#e2e8f0';
+  const roadBaseColor = isDark ? '#172033' : '#cbd5e1';
+  const roadLaneColor = isDark ? '#1f2d47' : '#ffffff';
+
   return (
     <div
-      className={`relative w-full ${heightClass} rounded-xl border border-slate-800 bg-[#080c14] overflow-hidden select-none flex flex-col`}
+      className={`relative w-full ${heightClass} rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#080c14] overflow-hidden select-none flex flex-col transition-colors duration-150 shadow-xs dark:shadow-none`}
     >
       {/* Top Banner / Breadcrumb Overlay */}
       <div className="absolute top-3 left-3 z-10 flex items-center gap-2 pointer-events-auto">
-        <div className="bg-[#0b0f19]/90 backdrop-blur-sm border border-slate-800 px-3 py-1.5 rounded-lg flex items-center gap-2 text-xs">
-          <span className="font-semibold text-slate-200">GREATER NOIDA SECTOR GRID</span>
-          <span className="text-slate-500">•</span>
-          <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
+        <div className="bg-white/90 dark:bg-[#0b0f19]/90 backdrop-blur-sm border border-slate-200 dark:border-slate-800 px-3 py-1.5 rounded-lg flex items-center gap-2 text-xs text-slate-800 dark:text-slate-200 shadow-sm">
+          <span className="font-semibold text-slate-800 dark:text-slate-200">GREATER NOIDA NETWORK</span>
+          <span className="text-slate-400">•</span>
+          <span className="text-[10px] font-mono text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-200 dark:border-emerald-500/20 font-semibold">
             SIMULATION
           </span>
-          {isRushHour && (
-            <span className="text-[10px] font-mono text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
+          {simulationMode === 'rush_hour' && (
+            <span className="text-[10px] font-mono text-amber-800 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-200 dark:border-amber-500/20 font-semibold">
               RUSH HOUR (+35%)
+            </span>
+          )}
+          {simulationMode === 'optimized' && (
+            <span className="text-[10px] font-mono text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-500/20 px-1.5 py-0.5 rounded border border-emerald-300 dark:border-emerald-500/40 font-semibold flex items-center gap-1">
+              <Sparkles className="w-3 h-3 text-emerald-500" />
+              <span>WEBSTER BALANCED</span>
             </span>
           )}
         </div>
@@ -97,14 +111,14 @@ export function MobilityMap({ onSelectIntersection, heightClass = 'h-[540px]' }:
 
       {/* Emergency Active Status Header Overlay */}
       {emergencyCorridor.active && (
-        <div className="absolute top-3 right-16 z-10 pointer-events-auto bg-rose-950/90 border border-rose-500/40 px-3 py-1.5 rounded-lg text-xs text-rose-200 flex items-center gap-3">
+        <div className="absolute top-3 right-16 z-10 pointer-events-auto bg-rose-50 dark:bg-rose-950/90 border border-rose-300 dark:border-rose-500/40 px-3 py-1.5 rounded-lg text-xs text-rose-800 dark:text-rose-200 flex items-center gap-3 shadow-md">
           <div className="flex items-center gap-1.5 font-medium">
-            <Ambulance className="w-4 h-4 text-rose-400 animate-bounce" />
+            <Ambulance className="w-4 h-4 text-rose-500 dark:text-rose-400 animate-bounce" />
             <span>Priority Corridor: Alpha 1 ➔ Pari Chowk ➔ Knowledge Park</span>
           </div>
-          <div className="flex items-center gap-2 border-l border-rose-800 pl-2 text-[11px] font-mono">
+          <div className="hidden sm:flex items-center gap-2 border-l border-rose-300 dark:border-rose-800 pl-2 text-[11px] font-mono">
             <span>Normal ETA: 14m 32s</span>
-            <span className="text-emerald-300 font-bold">NIU: 10m 51s (-3m 41s)</span>
+            <span className="text-emerald-700 dark:text-emerald-300 font-bold">NIU: 10m 51s (-3m 41s)</span>
           </div>
         </div>
       )}
@@ -121,7 +135,7 @@ export function MobilityMap({ onSelectIntersection, heightClass = 'h-[540px]' }:
           <defs>
             {/* Grid Pattern */}
             <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-              <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#141c2e" strokeWidth="0.8" opacity="0.6" />
+              <path d="M 40 0 L 0 0 0 40" fill="none" stroke={gridStroke} strokeWidth="0.8" opacity="0.6" />
             </pattern>
 
             {/* Glowing filter for active lines */}
@@ -132,7 +146,7 @@ export function MobilityMap({ onSelectIntersection, heightClass = 'h-[540px]' }:
           </defs>
 
           {/* Background Grid */}
-          <rect width="1000" height="640" fill="#080c14" />
+          <rect width="1000" height="640" fill={canvasBg} />
           <rect width="1000" height="640" fill="url(#grid)" />
 
           {/* Road Network Base Layer (Thick asphalt base) */}
@@ -141,7 +155,7 @@ export function MobilityMap({ onSelectIntersection, heightClass = 'h-[540px]' }:
               <path
                 key={`base-${seg.id}`}
                 d={seg.svgPath}
-                stroke="#172033"
+                stroke={roadBaseColor}
                 strokeWidth="18"
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -156,7 +170,7 @@ export function MobilityMap({ onSelectIntersection, heightClass = 'h-[540px]' }:
               <path
                 key={`lane-${seg.id}`}
                 d={seg.svgPath}
-                stroke="#1f2d47"
+                stroke={roadLaneColor}
                 strokeWidth="8"
                 strokeLinecap="round"
                 fill="none"
@@ -235,7 +249,7 @@ export function MobilityMap({ onSelectIntersection, heightClass = 'h-[540px]' }:
                 transform={`translate(${ambulancePos.x}, ${ambulancePos.y}) rotate(${ambulancePos.angle})`}
                 className="transition-all duration-150"
               >
-                <circle cx="0" cy="0" r="14" fill="#080c14" stroke="#ef4444" strokeWidth="2" />
+                <circle cx="0" cy="0" r="14" fill={canvasBg} stroke="#ef4444" strokeWidth="2" />
                 <circle cx="0" cy="0" r="18" fill="none" stroke="#ef4444" strokeWidth="1.5" className="animate-beacon" />
                 {/* Ambulance Cross Marker */}
                 <rect x="-6" y="-2" width="12" height="4" fill="#ef4444" rx="1" />

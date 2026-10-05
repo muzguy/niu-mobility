@@ -2,10 +2,10 @@ import React from 'react';
 
 export function MapLegend() {
   return (
-    <div className="bg-[#0b0f19]/90 backdrop-blur-sm border border-slate-800 rounded-lg p-3 text-xs text-slate-300 space-y-2 pointer-events-auto">
-      <div className="flex items-center justify-between border-b border-slate-800/80 pb-1.5 font-mono text-[10px] uppercase tracking-wider text-slate-400">
+    <div className="bg-white/90 dark:bg-[#0b0f19]/90 backdrop-blur-sm border border-slate-200 dark:border-slate-800 rounded-lg p-3 text-xs text-slate-700 dark:text-slate-300 space-y-2 pointer-events-auto shadow-md">
+      <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800/80 pb-1.5 font-mono text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">
         <span>Map Legend</span>
-        <span className="text-emerald-400 font-bold">SIMULATION</span>
+        <span className="text-emerald-700 dark:text-emerald-400 font-bold">SIMULATION</span>
       </div>
 
       <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-[11px]">
@@ -27,15 +27,21 @@ export function MapLegend() {
           <span>Severe (&lt; 25 km/h)</span>
         </div>
 
-        {/* Emergency Wave */}
+        {/* Optimized Traffic */}
         <div className="flex items-center gap-2">
+          <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 border border-emerald-600 ring-2 ring-emerald-400/30"></span>
+          <span>Optimized (Webster)</span>
+        </div>
+
+        {/* Emergency Wave */}
+        <div className="flex items-center gap-2 col-span-2">
           <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse"></span>
-          <span>Emergency Corridor</span>
+          <span>Emergency Priority Corridor (EVP)</span>
         </div>
       </div>
 
-      <div className="pt-1.5 border-t border-slate-800/80 text-[10px] text-slate-400 flex items-center justify-between">
-        <span>Intersections: Click node to inspect</span>
+      <div className="pt-1.5 border-t border-slate-200 dark:border-slate-800/80 text-[10px] text-slate-500 dark:text-slate-400 flex items-center justify-between">
+        <span>Click node to inspect signal split</span>
         <span>Grid: Greater Noida</span>
       </div>
     </div>

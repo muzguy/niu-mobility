@@ -30,23 +30,23 @@ export function getCongestionBadgeClass(level: 'low' | 'moderate' | 'severe'): {
   switch (level) {
     case 'low':
       return {
-        bg: 'bg-emerald-500/10',
-        text: 'text-emerald-400',
-        border: 'border-emerald-500/30',
+        bg: 'bg-emerald-50 dark:bg-emerald-500/10',
+        text: 'text-emerald-700 dark:text-emerald-400',
+        border: 'border-emerald-200 dark:border-emerald-500/30',
         label: 'Low Traffic',
       };
     case 'moderate':
       return {
-        bg: 'bg-amber-500/10',
-        text: 'text-amber-400',
-        border: 'border-amber-500/30',
+        bg: 'bg-amber-50 dark:bg-amber-500/10',
+        text: 'text-amber-800 dark:text-amber-400',
+        border: 'border-amber-200 dark:border-amber-500/30',
         label: 'Moderate Traffic',
       };
     case 'severe':
       return {
-        bg: 'bg-rose-500/10',
-        text: 'text-rose-400',
-        border: 'border-rose-500/30',
+        bg: 'bg-rose-50 dark:bg-rose-500/10',
+        text: 'text-rose-700 dark:text-rose-400',
+        border: 'border-rose-200 dark:border-rose-500/30',
         label: 'Severe Congestion',
       };
   }
