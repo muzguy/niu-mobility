@@ -8,6 +8,8 @@ import { RideMatchResult, RideSearchQuery } from '@/types/carpool';
 import { MetricCard } from '@/components/dashboard/metric-card';
 import { Users, Leaf, Car, Info } from 'lucide-react';
 
+import { apiSearchCarpool } from '@/lib/api-client';
+
 export default function CarpoolPage() {
   const [matches, setMatches] = useState<RideMatchResult[]>(() =>
     carpoolEngine.searchRides({
@@ -20,13 +22,22 @@ export default function CarpoolPage() {
 
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
-  const handleSearch = (query: RideSearchQuery) => {
+  const handleSearch = async (query: RideSearchQuery) => {
     setIsLoading(true);
-    setTimeout(() => {
+    try {
+      const res = await apiSearchCarpool(query);
+      if (res.success && res.data) {
+        setMatches(res.data.matches);
+      } else {
+        const results = carpoolEngine.searchRides(query);
+        setMatches(results);
+      }
+    } catch {
       const results = carpoolEngine.searchRides(query);
       setMatches(results);
+    } finally {
       setIsLoading(false);
-    }, 200);
+    }
   };
 
   const handleBookRide = (rideId: string) => {

@@ -6,6 +6,8 @@ import { getRoutes } from '@/lib/routing/routing-engine';
 import { RouteCard } from './route-card';
 import { MapPin, ArrowRightLeft, Route as RouteIcon, Info } from 'lucide-react';
 
+import { apiGetRoutes } from '@/lib/api-client';
+
 const SECTORS = ['Alpha 1', 'Alpha 2', 'Pari Chowk', 'Knowledge Park', 'Jagat Farm'];
 
 export function RouteComparison() {
@@ -18,12 +20,26 @@ export function RouteComparison() {
   useEffect(() => {
     async function loadRoutes() {
       setIsLoading(true);
-      const computed = await getRoutes(origin, destination);
-      setRoutes(computed);
-      // Select the recommended route by default
-      const rec = computed.find((r) => r.isRecommended) || computed[0];
-      if (rec) setSelectedRouteId(rec.id);
-      setIsLoading(false);
+      try {
+        const res = await apiGetRoutes(origin, destination);
+        if (res.success && res.data && res.data.routes && res.data.routes.length > 0) {
+          setRoutes(res.data.routes);
+          const rec = res.data.recommendedRoute || res.data.routes[0];
+          if (rec) setSelectedRouteId(rec.id);
+        } else {
+          const computed = await getRoutes(origin, destination);
+          setRoutes(computed);
+          const rec = computed.find((r) => r.isRecommended) || computed[0];
+          if (rec) setSelectedRouteId(rec.id);
+        }
+      } catch {
+        const computed = await getRoutes(origin, destination);
+        setRoutes(computed);
+        const rec = computed.find((r) => r.isRecommended) || computed[0];
+        if (rec) setSelectedRouteId(rec.id);
+      } finally {
+        setIsLoading(false);
+      }
     }
     loadRoutes();
   }, [origin, destination]);

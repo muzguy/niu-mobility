@@ -9,6 +9,8 @@ import { useSimulation } from '@/context/simulation-context';
 import { getCongestionBadgeClass } from '@/lib/utils';
 import { Clock, Gauge, Car, ShieldAlert, Sparkles } from 'lucide-react';
 
+import { apiOptimizeSignal } from '@/lib/api-client';
+
 interface IntersectionPanelProps {
   intersection: Intersection;
 }
@@ -16,18 +18,34 @@ interface IntersectionPanelProps {
 export function IntersectionPanel({ intersection }: IntersectionPanelProps) {
   const { applySignalOptimization } = useSimulation();
   const [optimizationResult, setOptimizationResult] = useState<OptimizationResult | null>(null);
+  const [isOptimizing, setIsOptimizing] = useState<boolean>(false);
   const badge = getCongestionBadgeClass(intersection.congestionLevel);
 
-  const handleRunOptimizer = () => {
-    const result = optimizeSignalTiming({
+  const handleRunOptimizer = async () => {
+    setIsOptimizing(true);
+    const input = {
       intersectionId: intersection.id,
       vehicleDensity: intersection.vehicleCount,
       queueLength: intersection.queueLengthMeters,
       waitingTime: intersection.waitingTimeMinutes,
       currentTiming: intersection.signalTiming,
       signals: intersection.signals,
-    });
-    setOptimizationResult(result);
+    };
+
+    try {
+      const res = await apiOptimizeSignal(input);
+      if (res.success && res.data) {
+        setOptimizationResult(res.data);
+      } else {
+        const result = optimizeSignalTiming(input);
+        setOptimizationResult(result);
+      }
+    } catch {
+      const result = optimizeSignalTiming(input);
+      setOptimizationResult(result);
+    } finally {
+      setIsOptimizing(false);
+    }
   };
 
   const handleApply = () => {
@@ -62,10 +80,11 @@ export function IntersectionPanel({ intersection }: IntersectionPanelProps) {
         {/* Optimize Button */}
         <button
           onClick={handleRunOptimizer}
-          className="self-start sm:self-auto px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold flex items-center gap-2 transition-all shadow-md shadow-emerald-950/20 cursor-pointer"
+          disabled={isOptimizing}
+          className="self-start sm:self-auto px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-semibold flex items-center gap-2 transition-all shadow-md shadow-emerald-950/20 cursor-pointer"
         >
-          <Sparkles className="w-4 h-4 text-emerald-200" />
-          <span>OPTIMIZE SIGNAL</span>
+          <Sparkles className={`w-4 h-4 text-emerald-200 ${isOptimizing ? 'animate-spin' : ''}`} />
+          <span>{isOptimizing ? 'COMPUTING WEBSTER...' : 'OPTIMIZE SIGNAL'}</span>
         </button>
       </div>
 

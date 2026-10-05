@@ -31,58 +31,121 @@ NIU delivers a unified **Mobility Command Center** that bridges the gap between 
 
 ---
 
-## 4. System Architecture
+## 4. System & Backend Architecture
+
+NIU implements a decoupled 5-tier architecture ensuring deterministic simulation execution locally, with seamless transition to persistent database storage when configured:
 
 ```
-Client Presentation (Next.js 16 App Router + Tailwind CSS + Lucide + Recharts)
-   │
-UI Component Layer (Dashboard, Map, Traffic, Carpool, Routes, Impact)
-   │
-Simulation & State Layer (Tick Manager, Greater Noida Telemetry Data Providers)
-   │
-Mobility Engines (Traffic, Signal Optimizer, Carpool Matcher, Routing, Emissions, Emergency)
-   │
-Future Service Adapters (Mapbox GL, Supabase, Municipal ITMS, Python/FastAPI ML)
+UI Components (Client / Server Components)
+   │  fetch (with automatic client fallback)
+   ▼
+Next.js App Router API Handlers (src/app/api/*)
+   │  Zod Payload Validation & Uniform JSON Envelope
+   ▼
+Service Layer (src/services/*)
+   │  Domain Business Logic
+   ▼
+Repository Pattern (src/lib/repositories/*)
+   ├── SimulationRepository (In-Memory Deterministic Greater Noida Data)
+   └── SupabaseRepository (PostgreSQL / Supabase REST with auto-fallback)
+   ▼
+Deterministic Mobility Engines (src/lib/*)
+   ├── Webster Signal Optimizer
+   ├── Deterministic Carpool Matching Engine
+   ├── IPCC Eco-Emissions Calculator
+   ├── Multi-Objective Routing Matrix
+   └── Emergency Corridor Pre-emption Engine
 ```
 
-Refer to [NIU_ARCHITECTURE.md](file:///c:/Users/itsro/Downloads/niu-mobility-main/niu-mobility-main/NIU_ARCHITECTURE.md) for full architectural specifications and Mermaid diagrams.
+For complete architectural specifications and data flow diagrams, see [NIU_BACKEND.md](file:///c:/Users/itsro/Downloads/niu-mobility-main/niu-mobility-main/NIU_BACKEND.md) and [NIU_ARCHITECTURE.md](file:///c:/Users/itsro/Downloads/niu-mobility-main/niu-mobility-main/NIU_ARCHITECTURE.md).
 
 ---
 
-## 5. Tech Stack
+## 5. Dual Operational Data Modes
+
+NIU can operate in two distinct persistence modes controlled via the `NIU_DATA_MODE` environment variable:
+
+| Mode | Environment Config | Description |
+|---|---|---|
+| **SIMULATION MODE** *(Default)* | `NIU_DATA_MODE=simulation` | Runs out-of-the-box with **zero credentials or external setup**. Serves deterministic calibrated telemetry for Greater Noida junctions. |
+| **DATABASE MODE** | `NIU_DATA_MODE=database` | Connects to PostgreSQL / Supabase for persistent snapshots, audit logs, and queries. Includes automatic fallback to simulation if Supabase is unreachable. |
+
+---
+
+## 6. API Endpoints Reference
+
+All API endpoints return a uniform JSON envelope:
+- **Success**: `{ "success": true, "data": { ... }, "timestamp": "..." }`
+- **Error**: `{ "success": false, "error": { "code": "...", "message": "...", "details": { ... } }, "timestamp": "..." }`
+
+| Method | Endpoint | Description | Sample Request |
+|---|---|---|---|
+| `GET` | `/api/health` | Service health & active data mode | `curl http://localhost:3000/api/health` |
+| `GET` | `/api/traffic` | Macro traffic metrics & status | `curl http://localhost:3000/api/traffic` |
+| `GET` | `/api/traffic/intersections` | Monitored junction node list | `curl http://localhost:3000/api/traffic/intersections` |
+| `POST` | `/api/traffic/optimize` | Webster signal split optimization | `{"intersectionId": "pari-chowk", "vehicleDensity": 140, "queueLength": 60, "waitingTime": 4.0}` |
+| `POST` | `/api/traffic/simulation` | Switch simulation scenario | `{"mode": "rush_hour"}` |
+| `GET` | `/api/carpool/search` | Retrieve active carpool rides | `curl http://localhost:3000/api/carpool/search` |
+| `POST` | `/api/carpool/search` | Search shared commute rides | `{"origin": "Alpha 1", "destination": "Knowledge Park", "departureTime": "08:30 AM", "seats": 1}` |
+| `GET` | `/api/routes` | Eco-navigation route comparison | `curl "http://localhost:3000/api/routes?origin=Alpha+1&destination=Knowledge+Park"` |
+| `POST` | `/api/routes` | Eco-navigation route comparison | `{"origin": "Alpha 1", "destination": "Knowledge Park"}` |
+| `GET` | `/api/impact` | IPCC carbon footprint analytics | `curl http://localhost:3000/api/impact` |
+| `GET` | `/api/emergency/priority` | Active emergency corridor status | `curl http://localhost:3000/api/emergency/priority` |
+| `POST` | `/api/emergency/priority` | Activate/cancel emergency pre-emption | `{"action": "activate", "vehicleId": "AMB-108"}` |
+
+---
+
+## 7. Database Setup (Supabase / PostgreSQL)
+
+When enabling Database Mode (`NIU_DATA_MODE=database`), run the provided migrations and seed data in your Supabase project:
+
+1. **Apply Schema Migration**: Execute [`supabase/migrations/20261005000000_initial_schema.sql`](file:///c:/Users/itsro/Downloads/niu-mobility-main/niu-mobility-main/supabase/migrations/20261005000000_initial_schema.sql) in the Supabase SQL Editor. Creates all 10 core tables (`intersections`, `traffic_snapshots`, `signal_timings`, `traffic_events`, `emergency_events`, `carpool_requests`, `carpool_matches`, `route_queries`, `impact_metrics`, `simulation_runs`) with foreign keys and performance indexes.
+2. **Apply Deterministic Seed Data**: Execute [`supabase/seed.sql`](file:///c:/Users/itsro/Downloads/niu-mobility-main/niu-mobility-main/supabase/seed.sql) to populate the baseline Greater Noida monitored junction network.
+
+---
+
+## 8. Tech Stack
 
 - **Framework**: [Next.js](https://nextjs.org/) 16 (App Router, Turbopack)
 - **Language**: [TypeScript](https://www.typescriptlang.org/) (Strict typing across all models)
+- **API Validation**: [Zod](https://zod.dev/) (Strict runtime payload verification)
 - **Styling**: [Tailwind CSS](https://tailwindcss.com/) (Dark-first modern engineering aesthetic)
 - **Icons**: [Lucide React](https://lucide.dev/)
 - **Data Visualization**: [Recharts](https://recharts.org/)
-- **Design Principles**: Dark charcoal surfaces, emerald green sustainability accents, high-contrast semantic traffic colors, accessible semantic HTML.
+- **Database / Backend**: PostgreSQL / Supabase PostgREST (Optional persistence with automatic local fallback)
 
 ---
 
-## 6. Simulation Disclaimer
+## 9. Simulation Disclaimer
 
 > [!NOTE]
 > **SIMULATION MODE NOTICE**
-> The current version of NIU is a high-fidelity working prototype and simulation. All intersection telemetry, vehicle counts, carpool listings, and signal adjustments reflect simulated Greater Noida urban corridors. The platform does not claim live physical control over municipal traffic infrastructure or real-time GPS hardware. All calculation engines execute real, deterministic mathematical models designed for seamless future sensor ingestion.
+> The default version of NIU is a high-fidelity working prototype and simulation. All intersection telemetry, vehicle counts, carpool listings, and signal adjustments reflect simulated Greater Noida urban corridors. The platform does not claim live physical control over municipal traffic infrastructure or real-time GPS hardware. All calculation engines execute real, deterministic mathematical models designed for seamless future sensor ingestion.
 
 ---
 
-## 7. Environment Variables
+## 10. Environment Variables
 
-The project runs completely out-of-the-box in local simulation mode without external keys. For future phases, an environment template is provided in `.env.example`:
+The project runs completely out-of-the-box in local simulation mode without external keys. Configure `.env.local` based on `.env.example`:
 
 ```bash
+# Operational Data Mode ('simulation' | 'database')
+NIU_DATA_MODE=simulation
+
+# Supabase Persistence (Required only when NIU_DATA_MODE=database)
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+
+# Future Integrations
 NEXT_PUBLIC_MAPBOX_TOKEN=
-NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_ANON_KEY=
 NEXT_PUBLIC_TRAFFIC_API_KEY=
 NEXT_PUBLIC_ML_SERVICE_URL=
 ```
 
 ---
 
-## 8. Setup & Local Run Instructions
+## 11. Setup & Local Run Instructions
 
 ### Prerequisites
 - Node.js 18.17+ or 20+ (Tested on Node.js v24)
@@ -105,13 +168,16 @@ npm run dev
 # Run TypeScript compilation and production bundle build
 npm run build
 
+# Run ESLint verification
+npm run lint
+
 # Start production server
 npm run start
 ```
 
 ---
 
-## 9. Development Roadmap
+## 12. Development Roadmap
 
 - **Phases 1–8 (Complete)**: Architectural foundation, Mobility Command Center, interactive vector map, traffic intelligence, signal optimizer, deterministic carpool matching, eco-routing, sustainability engine, and emergency vehicle pre-emption simulation.
 - **Phase 9 (Future)**: Mapbox vector tiles, Supabase database persistence, real-time WebSocket fleet feeds.

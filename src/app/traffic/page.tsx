@@ -8,6 +8,7 @@ import { IntersectionPanel } from '@/components/traffic/intersection-panel';
 import { Activity, Gauge, Clock, Info, Layers, SlidersHorizontal } from 'lucide-react';
 import { getCongestionBadgeClass } from '@/lib/utils';
 import { SimulationTrafficMode } from '@/lib/simulation/simulation-engine';
+import { apiSetSimulationScenario } from '@/lib/api-client';
 
 export default function TrafficPage() {
   const {
@@ -18,6 +19,15 @@ export default function TrafficPage() {
     simulationMode,
     setSimulationMode,
   } = useSimulation();
+
+  const handleScenarioChange = async (mode: SimulationTrafficMode) => {
+    setSimulationMode(mode);
+    try {
+      await apiSetSimulationScenario(mode);
+    } catch {
+      // Graceful fallback to local simulation
+    }
+  };
 
   // Aggregate stats across monitored intersections
   const avgQueue = Math.round(
@@ -80,7 +90,7 @@ export default function TrafficPage() {
             return (
               <button
                 key={mode.id}
-                onClick={() => setSimulationMode(mode.id)}
+                onClick={() => handleScenarioChange(mode.id)}
                 className={`p-3 rounded-lg border text-left transition-all cursor-pointer ${
                   isActive
                     ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-400 dark:border-emerald-500/60 shadow-xs'

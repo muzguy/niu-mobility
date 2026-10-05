@@ -7,8 +7,40 @@ import { SustainabilityScore } from '@/components/impact/sustainability-score';
 import { Leaf, Droplet, Users, Clock, Trees, Award } from 'lucide-react';
 import { useSimulation } from '@/context/simulation-context';
 
+import { apiGetImpact } from '@/lib/api-client';
+
 export default function ImpactPage() {
-  const { metrics } = useSimulation();
+  const { metrics: simMetrics } = useSimulation();
+  const [serverMetrics, setServerMetrics] = React.useState<{
+    co2SavedTons: number;
+    fuelSavedLiters: number;
+    tripsAvoided: number;
+    commuteHoursSaved: number;
+  } | null>(null);
+
+  React.useEffect(() => {
+    async function loadImpact() {
+      try {
+        const res = await apiGetImpact();
+        if (res.success && res.data) {
+          setServerMetrics({
+            co2SavedTons: res.data.metrics.estimatedCo2SavedTons,
+            fuelSavedLiters: res.data.metrics.fuelSavedLiters,
+            tripsAvoided: res.data.metrics.tripsAvoided,
+            commuteHoursSaved: res.data.metrics.commuteHoursSaved,
+          });
+        }
+      } catch {
+        // Fallback to simulation context
+      }
+    }
+    loadImpact();
+  }, []);
+
+  const co2Val = serverMetrics ? serverMetrics.co2SavedTons : simMetrics.estimatedCo2SavedTons;
+  const fuelVal = serverMetrics ? serverMetrics.fuelSavedLiters : 788;
+  const tripsVal = serverMetrics ? serverMetrics.tripsAvoided : simMetrics.activeTrips;
+  const hoursVal = serverMetrics ? serverMetrics.commuteHoursSaved : 48.5;
 
   return (
     <div className="space-y-6">
@@ -29,7 +61,7 @@ export default function ImpactPage() {
         </div>
 
         <div className="text-xs font-mono text-slate-700 dark:text-slate-400 bg-slate-100 dark:bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 self-start sm:self-auto">
-          Cumulative Progress: <span className="text-emerald-600 dark:text-emerald-400 font-bold">{metrics.estimatedCo2SavedTons} Tons CO2 Averted</span>
+          Cumulative Progress: <span className="text-emerald-600 dark:text-emerald-400 font-bold">{co2Val} Tons CO2 Averted</span>
         </div>
       </div>
 
@@ -37,7 +69,7 @@ export default function ImpactPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <ImpactCard
           title="Estimated CO2 Saved"
-          value={metrics.estimatedCo2SavedTons}
+          value={co2Val}
           unit="Tons"
           subtitle="Avoided exhaust emissions"
           icon={Leaf}
@@ -46,7 +78,7 @@ export default function ImpactPage() {
 
         <ImpactCard
           title="Fuel Saved"
-          value="788"
+          value={fuelVal}
           unit="Liters"
           subtitle="Combustion fuel conserved"
           icon={Droplet}
@@ -55,7 +87,7 @@ export default function ImpactPage() {
 
         <ImpactCard
           title="Vehicle Trips Avoided"
-          value={metrics.activeTrips}
+          value={tripsVal}
           unit="trips"
           subtitle="Single-occupancy cars diverted"
           icon={Users}
@@ -64,7 +96,7 @@ export default function ImpactPage() {
 
         <ImpactCard
           title="Commute Time Saved"
-          value="48.5"
+          value={hoursVal}
           unit="Hours"
           subtitle="Cumulative urban travel delay cut"
           icon={Clock}

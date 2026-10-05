@@ -13,6 +13,7 @@ import { Direction, Intersection, CongestionLevel } from '@/types/traffic';
 import { CityMobilityMetrics, SimulationEvent } from '@/types/mobility';
 import { EmergencyCorridor } from '@/types/traffic';
 import { aggregateCityMetrics } from '@/lib/traffic/traffic-engine';
+import { apiTriggerEmergency, apiSetSimulationScenario } from '@/lib/api-client';
 
 interface SimulationContextValue {
   state: SimulationState;
@@ -44,11 +45,17 @@ export function SimulationProvider({ children }: { children: React.ReactNode }) 
   }, []);
 
   const triggerEmergency = useCallback(() => {
-    setState((prev) => toggleEmergencySimulation(prev));
+    setState((prev) => {
+      const next = toggleEmergencySimulation(prev);
+      const action = next.emergencyCorridor.active ? 'activate' : 'cancel';
+      apiTriggerEmergency(action).catch(() => {});
+      return next;
+    });
   }, []);
 
   const setSimulationMode = useCallback((mode: SimulationTrafficMode) => {
     setState((prev) => setSimulationTrafficMode(prev, mode));
+    apiSetSimulationScenario(mode).catch(() => {});
   }, []);
 
   const applySignalOptimization = useCallback(
