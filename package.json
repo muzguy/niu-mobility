@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "tsx --test tests/map-architecture.test.ts"
+    "test": "tsx --test tests/map-architecture.test.ts tests/smart-routing.test.ts"
   },
   "dependencies": {
     "clsx": "^2.1.1",

@@ -1,48 +1,137 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { RouteOption } from '@/types/routing';
-import { getRoutes } from '@/lib/routing/routing-engine';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { RoutingObjective, SmartRouteComparisonResult } from '@/types/routing';
 import { RouteCard } from './route-card';
-import { MapPin, ArrowRightLeft, Route as RouteIcon, Info } from 'lucide-react';
-
+import { MobilityMap } from '@/components/map/mobility-map';
+import { routesToGeoJSON } from '@/lib/map/geojson-converter';
+import { useSimulation } from '@/context/simulation-context';
+import { SimulationTrafficMode } from '@/lib/simulation/simulation-engine';
 import { apiGetRoutes } from '@/lib/api-client';
+import {
+  MapPin,
+  ArrowRightLeft,
+  Route as RouteIcon,
+  ShieldCheck,
+  AlertTriangle,
+  RotateCcw,
+  Sparkles,
+  Info,
+} from 'lucide-react';
 
-const SECTORS = ['Alpha 1', 'Alpha 2', 'Pari Chowk', 'Knowledge Park', 'Jagat Farm'];
+const CANDIDATE_LOCATIONS = [
+  'Pari Chowk',
+  'Knowledge Park',
+  'Alpha 1',
+  'Alpha 2',
+  'Jagat Farm',
+  'Galgotias University',
+  'Dankaur Junction',
+];
 
 export function RouteComparison() {
-  const [origin, setOrigin] = useState<string>('Alpha 1');
+  const { simulationMode, setSimulationMode } = useSimulation();
+
+  const [origin, setOrigin] = useState<string>('Pari Chowk');
   const [destination, setDestination] = useState<string>('Knowledge Park');
-  const [routes, setRoutes] = useState<RouteOption[]>([]);
+  const [objective, setObjective] = useState<RoutingObjective>('NIU_OPTIMAL');
+
+  const [comparisonResult, setComparisonResult] = useState<SmartRouteComparisonResult | null>(null);
   const [selectedRouteId, setSelectedRouteId] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  // Recalculate routes on input, scenario, or objective change
   useEffect(() => {
-    async function loadRoutes() {
-      setIsLoading(true);
-      try {
-        const res = await apiGetRoutes(origin, destination);
-        if (res.success && res.data && res.data.routes && res.data.routes.length > 0) {
-          setRoutes(res.data.routes);
-          const rec = res.data.recommendedRoute || res.data.routes[0];
-          if (rec) setSelectedRouteId(rec.id);
-        } else {
-          const computed = await getRoutes(origin, destination);
-          setRoutes(computed);
-          const rec = computed.find((r) => r.isRecommended) || computed[0];
-          if (rec) setSelectedRouteId(rec.id);
-        }
-      } catch {
-        const computed = await getRoutes(origin, destination);
-        setRoutes(computed);
-        const rec = computed.find((r) => r.isRecommended) || computed[0];
-        if (rec) setSelectedRouteId(rec.id);
-      } finally {
-        setIsLoading(false);
-      }
+    let isMounted = true;
+    const trimmedOrigin = origin.trim();
+    const trimmedDest = destination.trim();
+
+    if (!trimmedOrigin || !trimmedDest) return;
+    if (trimmedOrigin.toLowerCase() === trimmedDest.toLowerCase()) {
+      queueMicrotask(() => {
+        if (isMounted) setErrorMessage('Origin and destination cannot be identical.');
+      });
+      return;
     }
-    loadRoutes();
-  }, [origin, destination]);
+
+    queueMicrotask(() => {
+      if (isMounted) {
+        setIsLoading(true);
+        setErrorMessage(null);
+      }
+    });
+
+    apiGetRoutes(trimmedOrigin, trimmedDest, {
+      zoneId: 'greater-noida-core',
+      objective,
+      scenario: simulationMode,
+    })
+      .then((res) => {
+        if (!isMounted) return;
+        if (res.success && res.data) {
+          setComparisonResult(res.data);
+          const topRoute = res.data.recommendedRoute || res.data.routes[0];
+          if (topRoute) {
+            setSelectedRouteId(topRoute.id);
+          }
+        } else {
+          setErrorMessage(res.error?.message || 'Failed to calculate smart route.');
+        }
+      })
+      .catch((err: unknown) => {
+        if (!isMounted) return;
+        const msg = err instanceof Error ? err.message : 'Routing calculation request failed.';
+        setErrorMessage(msg);
+      })
+      .finally(() => {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [origin, destination, objective, simulationMode]);
+
+  const handleManualRefresh = useCallback(() => {
+    const trimmedOrigin = origin.trim();
+    const trimmedDest = destination.trim();
+
+    if (!trimmedOrigin || !trimmedDest) return;
+    if (trimmedOrigin.toLowerCase() === trimmedDest.toLowerCase()) {
+      setErrorMessage('Origin and destination cannot be identical.');
+      return;
+    }
+
+    setIsLoading(true);
+    setErrorMessage(null);
+
+    apiGetRoutes(trimmedOrigin, trimmedDest, {
+      zoneId: 'greater-noida-core',
+      objective,
+      scenario: simulationMode,
+    })
+      .then((res) => {
+        if (res.success && res.data) {
+          setComparisonResult(res.data);
+          const topRoute = res.data.recommendedRoute || res.data.routes[0];
+          if (topRoute) {
+            setSelectedRouteId(topRoute.id);
+          }
+        } else {
+          setErrorMessage(res.error?.message || 'Failed to calculate smart route.');
+        }
+      })
+      .catch((err: unknown) => {
+        const msg = err instanceof Error ? err.message : 'Routing calculation request failed.';
+        setErrorMessage(msg);
+      })
+      .finally(() => {
+        setIsLoading(false);
+      });
+  }, [origin, destination, objective, simulationMode]);
 
   const handleSwap = () => {
     const temp = origin;
@@ -50,46 +139,92 @@ export function RouteComparison() {
     setDestination(temp);
   };
 
-  const selectedRoute = routes.find((r) => r.id === selectedRouteId);
+  const routes = useMemo(() => comparisonResult?.routes || [], [comparisonResult]);
+  const selectedRoute = useMemo(
+    () => routes.find((r) => r.id === selectedRouteId) || routes[0],
+    [routes, selectedRouteId]
+  );
+  const recommendedRoute = useMemo(
+    () => comparisonResult?.recommendedRoute || routes.find((r) => r.isRecommended) || routes[0],
+    [comparisonResult, routes]
+  );
+
+  // Convert routes into GeoJSON LineStrings for MapLibre
+  const routesGeoJSON = useMemo(() => {
+    if (!routes || routes.length === 0) return null;
+    return routesToGeoJSON(routes);
+  }, [routes]);
+
+  const originPoint = useMemo(() => {
+    if (!comparisonResult) return null;
+    return {
+      coordinate: comparisonResult.origin.snappedCoordinate,
+      name: comparisonResult.origin.resolvedName,
+    };
+  }, [comparisonResult]);
+
+  const destinationPoint = useMemo(() => {
+    if (!comparisonResult) return null;
+    return {
+      coordinate: comparisonResult.destination.snappedCoordinate,
+      name: comparisonResult.destination.resolvedName,
+    };
+  }, [comparisonResult]);
 
   return (
     <div className="space-y-6">
-      {/* Route Query Selector */}
+      {/* Route Query Formulation Panel */}
       <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0f1523]/90 p-5 shadow-xs backdrop-blur-sm">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
           <div>
-            <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">Smart Route Comparison</h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
+                Traffic-Aware Smart Route Engine
+              </h2>
+              <span className="text-[10px] font-mono text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20 font-semibold">
+                DETERMINISTIC GRAPH A*
+              </span>
+            </div>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              Multi-criteria trajectory engine contrasting travel time vs. environmental footprint
+              Synthesizes real OSM road geometry with BPR speed-flow simulation and IPCC carbon emission modeling
             </p>
           </div>
-          <span className="text-[10px] font-mono text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20 font-semibold self-start sm:self-auto">
-            SIMULATED ROUTE PROVIDER
-          </span>
+
+          {/* Scenario & Objective Badges */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-[11px] font-mono text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-900 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-800 font-medium">
+              Zone: <strong className="text-slate-900 dark:text-slate-200">Greater Noida Core</strong>
+            </span>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-11 gap-3 items-center">
+        {/* Inputs Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
           {/* Origin */}
-          <div className="md:col-span-5">
-            <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1">Origin Node</label>
+          <div className="md:col-span-3">
+            <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1">
+              Origin Location
+            </label>
             <div className="relative">
               <MapPin className="absolute left-3 top-2.5 w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-              <select
+              <input
+                type="text"
+                list="origin-locations"
                 value={origin}
                 onChange={(e) => setOrigin(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:border-emerald-500 transition-colors cursor-pointer"
-              >
-                {SECTORS.map((s) => (
-                  <option key={`orig-${s}`} value={s} disabled={s === destination}>
-                    {s}
-                  </option>
+                placeholder="Enter origin..."
+                className="w-full pl-9 pr-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:border-emerald-500 transition-colors"
+              />
+              <datalist id="origin-locations">
+                {CANDIDATE_LOCATIONS.map((loc) => (
+                  <option key={`orig-${loc}`} value={loc} />
                 ))}
-              </select>
+              </datalist>
             </div>
           </div>
 
           {/* Swap */}
-          <div className="md:col-span-1 flex justify-center pt-3 md:pt-0">
+          <div className="md:col-span-1 flex justify-center pb-1">
             <button
               onClick={handleSwap}
               title="Swap Origin and Destination"
@@ -101,55 +236,128 @@ export function RouteComparison() {
           </div>
 
           {/* Destination */}
-          <div className="md:col-span-5">
-            <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1">Destination Node</label>
+          <div className="md:col-span-3">
+            <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1">
+              Destination Location
+            </label>
             <div className="relative">
               <MapPin className="absolute left-3 top-2.5 w-4 h-4 text-cyan-600 dark:text-cyan-400" />
-              <select
+              <input
+                type="text"
+                list="dest-locations"
                 value={destination}
                 onChange={(e) => setDestination(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:border-cyan-500 transition-colors cursor-pointer"
-              >
-                {SECTORS.map((s) => (
-                  <option key={`dest-${s}`} value={s} disabled={s === origin}>
-                    {s}
-                  </option>
+                placeholder="Enter destination..."
+                className="w-full pl-9 pr-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:border-cyan-500 transition-colors"
+              />
+              <datalist id="dest-locations">
+                {CANDIDATE_LOCATIONS.map((loc) => (
+                  <option key={`dest-${loc}`} value={loc} />
                 ))}
-              </select>
+              </datalist>
             </div>
           </div>
+
+          {/* Scenario Selector */}
+          <div className="md:col-span-2">
+            <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1">
+              Simulation Scenario
+            </label>
+            <select
+              value={simulationMode}
+              onChange={(e) => setSimulationMode(e.target.value as SimulationTrafficMode)}
+              className="w-full px-2.5 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:border-emerald-500 transition-colors cursor-pointer capitalize"
+            >
+              <option value="normal">Normal (Baseline)</option>
+              <option value="rush_hour">Rush Hour (Peak Demand)</option>
+              <option value="optimized">Optimized (Adaptive Signal)</option>
+              <option value="emergency">Emergency (Pre-emption)</option>
+            </select>
+          </div>
+
+          {/* Objective Selector */}
+          <div className="md:col-span-2">
+            <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1">
+              Routing Objective
+            </label>
+            <select
+              value={objective}
+              onChange={(e) => setObjective(e.target.value as RoutingObjective)}
+              className="w-full px-2.5 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:border-emerald-500 transition-colors cursor-pointer"
+            >
+              <option value="NIU_OPTIMAL">NIU Optimal (Balanced)</option>
+              <option value="FASTEST">Fastest (Min Time)</option>
+              <option value="SHORTEST">Shortest (Min Distance)</option>
+              <option value="LOWEST_EMISSIONS">Lowest Emissions</option>
+              <option value="LOWEST_CONGESTION">Lowest Congestion</option>
+            </select>
+          </div>
+
+          {/* Recalculate Button */}
+          <div className="md:col-span-1">
+            <button
+              onClick={handleManualRefresh}
+              disabled={isLoading}
+              title="Recalculate Routes"
+              className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-1 transition-all cursor-pointer shadow-xs"
+            >
+              <RotateCcw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+            </button>
+          </div>
         </div>
+
+        {/* Error Notification */}
+        {errorMessage && (
+          <div className="mt-4 p-3 rounded-lg border border-rose-300 dark:border-rose-900/50 bg-rose-50 dark:bg-rose-950/20 text-rose-700 dark:text-rose-400 text-xs flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 shrink-0" />
+            <span>{errorMessage}</span>
+          </div>
+        )}
       </div>
 
-      {/* Selected Route Highlights Banner */}
-      {selectedRoute && (
-        <div className="p-4 rounded-xl border border-cyan-300 dark:border-cyan-500/30 bg-cyan-50/70 dark:bg-cyan-950/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-xs">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-lg bg-cyan-500/10 border border-cyan-500/30 text-cyan-600 dark:text-cyan-400">
-              <RouteIcon className="w-4 h-4" />
+      {/* Recommended Route Hero Banner */}
+      {recommendedRoute && !errorMessage && (
+        <div className="p-4 rounded-xl border border-emerald-300 dark:border-emerald-500/30 bg-emerald-50/60 dark:bg-emerald-950/20 flex flex-col md:flex-row md:items-center justify-between gap-4 text-xs shadow-xs">
+          <div className="flex items-start sm:items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 shrink-0">
+              <ShieldCheck className="w-5 h-5" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <span className="font-bold text-slate-900 dark:text-slate-100 font-mono">{selectedRoute.title}</span>
-                <span className="text-[10px] text-cyan-700 dark:text-cyan-300 font-mono">• {selectedRoute.badge}</span>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-bold text-slate-900 dark:text-slate-100 text-sm font-mono">
+                  NIU RECOMMENDED: {recommendedRoute.title}
+                </span>
+                <span className="text-[10px] font-mono text-emerald-700 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/50 px-2 py-0.5 rounded font-semibold">
+                  SCORE {recommendedRoute.niuScore}/100
+                </span>
               </div>
-              <p className="text-slate-600 dark:text-slate-400 text-[11px] mt-0.5">
-                Estimated Transit: {selectedRoute.etaMinutes} min | CO2: {selectedRoute.estimatedCo2Kg} kg | Distance: {selectedRoute.distanceKm} km
+              <p className="text-slate-600 dark:text-slate-400 text-xs mt-1">
+                {recommendedRoute.etaMinutes} min · {recommendedRoute.distanceKm} km · {recommendedRoute.estimatedCo2Kg} kg EST. CO2 · {recommendedRoute.trafficLevel} Flow
+              </p>
+              <p className="text-[11px] text-emerald-800 dark:text-emerald-300 mt-1 font-medium">
+                &ldquo;{recommendedRoute.recommendationReason}&rdquo;
               </p>
             </div>
           </div>
 
-          <div className="text-[11px] font-mono text-slate-700 dark:text-slate-400 bg-white/90 dark:bg-slate-900/80 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 self-start sm:self-auto font-medium">
-            {selectedRoute.type === 'greenest'
-              ? '🌿 Lowest Carbon Corridor: Saves ~1.48 kg CO2 vs Fastest'
-              : selectedRoute.type === 'balanced'
-              ? '⚖️ Optimal Balance: Avoids Pari Chowk peak delays'
-              : '⚡ Fastest Radial: Higher stop-and-go acceleration cycles'}
+          <div className="flex items-center gap-2 self-start md:self-auto shrink-0">
+            {selectedRouteId !== recommendedRoute.id && (
+              <button
+                onClick={() => setSelectedRouteId(recommendedRoute.id)}
+                className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-500 transition-colors cursor-pointer flex items-center gap-1.5"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                Select NIU Optimal
+              </button>
+            )}
+            <div className="text-[11px] font-mono text-slate-700 dark:text-slate-400 bg-white/90 dark:bg-slate-900/80 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800">
+              Snapped to OSM: <span className="text-emerald-600 dark:text-emerald-400 font-bold">{comparisonResult?.origin.snapDistanceMeters ?? 0}m</span>
+            </div>
           </div>
         </div>
       )}
 
-      {/* Route Cards Comparison Grid (Fastest, Balanced, Greenest) */}
+      {/* Alternative Route Cards Grid */}
       <div className={`grid grid-cols-1 md:grid-cols-3 gap-4 transition-opacity ${isLoading ? 'opacity-50' : 'opacity-100'}`}>
         {routes.map((route) => (
           <RouteCard
@@ -161,15 +369,68 @@ export function RouteComparison() {
         ))}
       </div>
 
-      {/* Future Mapbox Integration Disclaimer */}
-      <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/40 flex items-start gap-3 text-xs text-slate-500 dark:text-slate-400">
-        <Info className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
-        <div className="space-y-1">
-          <p className="font-medium text-slate-800 dark:text-slate-300">Phase 1 Simulated Routing Provider Active</p>
-          <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
-            All route calculations, travel durations, and carbon emissions represent calibrated models based on Greater Noida urban geometry. The architecture is decoupled via the <code className="text-emerald-600 dark:text-emerald-400 font-mono">IRouteProvider</code> interface, ready for future drop-in Mapbox Directions or OSRM vector routing in Phase 9.
-          </p>
+      {/* Embedded MapLibre Real Route Geometry Visualization */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <RouteIcon className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+            <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+              Real Road Network Route Trajectory (MapLibre / CARTO)
+            </h3>
+          </div>
+          <span className="text-[11px] font-mono text-slate-500 dark:text-slate-400">
+            Active: <strong className="text-emerald-600 dark:text-emerald-400">{selectedRoute?.title || 'Route 1'}</strong>
+          </span>
         </div>
+
+        <MobilityMap
+          activeZoneId="greater-noida-core"
+          heightClass="h-[440px] sm:h-[500px]"
+          routesGeoJSON={routesGeoJSON}
+          selectedRouteId={selectedRouteId}
+          originPoint={originPoint}
+          destinationPoint={destinationPoint}
+          onSelectRoute={setSelectedRouteId}
+        />
+      </div>
+
+      {/* Tripartite Data Provenance & Methodological Integrity Footer */}
+      <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/40 space-y-2 text-xs">
+        <div className="flex items-center gap-2 font-semibold text-slate-800 dark:text-slate-200">
+          <Info className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+          <span>NIU Methodological Provenance & Modeling Specifications</span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 pt-1 text-[11px] font-mono">
+          <div className="p-2.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+            <div className="text-slate-500 dark:text-slate-400 text-[10px]">ROAD NETWORK</div>
+            <div className="font-bold text-slate-800 dark:text-slate-200 mt-0.5">REAL — OSM / SEED</div>
+            <div className="text-[9px] text-slate-400 mt-0.5">Real Greater Noida Geometry</div>
+          </div>
+
+          <div className="p-2.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+            <div className="text-slate-500 dark:text-slate-400 text-[10px]">TRAFFIC ENGINE</div>
+            <div className="font-bold text-amber-600 dark:text-amber-400 mt-0.5">SIMULATED (BPR FLOW)</div>
+            <div className="text-[9px] text-slate-400 mt-0.5">Scenario Diurnal Multipliers</div>
+          </div>
+
+          <div className="p-2.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+            <div className="text-slate-500 dark:text-slate-400 text-[10px]">ROUTE COMPUTATION</div>
+            <div className="font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">NIU GRAPH A*</div>
+            <div className="text-[9px] text-slate-400 mt-0.5">Multi-Objective Cost Optimization</div>
+          </div>
+
+          <div className="p-2.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+            <div className="text-slate-500 dark:text-slate-400 text-[10px]">CARBON EMISSIONS</div>
+            <div className="font-bold text-cyan-600 dark:text-cyan-400 mt-0.5">ESTIMATED CO2</div>
+            <div className="text-[9px] text-slate-400 mt-0.5">IPCC / CEA Thermodynamic Model</div>
+          </div>
+        </div>
+
+        <p className="text-[11px] text-slate-500 dark:text-slate-400 pt-1 leading-relaxed">
+          Traffic-aware route optimization using real OSM road geometry and NIU&apos;s deterministic mobility simulation.
+          NIU is not yet connected to live physical road sensors or proprietary turn-by-turn navigation providers.
+        </p>
       </div>
     </div>
   );

@@ -1,16 +1,27 @@
 import { SIMULATED_ROUTE_PAIRS } from '@/data/routes';
 import { IRouteProvider, RouteOption, RouteRequest } from '@/types/routing';
 import { calculateEmissions } from '../emissions/emissions-engine';
+import { smartRoutingEngine } from './smart-routing-engine';
 
 /**
  * Simulated Local Route Provider
- * Implements IRouteProvider abstraction contract.
+ * Implements IRouteProvider abstraction contract with Phase 9 Graph Routing and fallback.
  */
 export class SimulatedRouteProvider implements IRouteProvider {
   public async getRoutes(request: RouteRequest): Promise<RouteOption[]> {
     const { origin, destination } = request;
 
-    // Attempt exact or normalized match in simulated route table
+    // 1. Try real graph routing first
+    try {
+      const graphRoutes = await smartRoutingEngine.getRoutes(request);
+      if (graphRoutes && graphRoutes.length > 0) {
+        return graphRoutes;
+      }
+    } catch {
+      // Graceful fallback to calibrated route table if graph route cannot be found
+    }
+
+    // 2. Attempt exact or normalized match in simulated route table
     const pair = SIMULATED_ROUTE_PAIRS.find(
       (p) =>
         p.origin.toLowerCase().includes(origin.toLowerCase()) &&

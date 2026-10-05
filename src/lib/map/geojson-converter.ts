@@ -279,3 +279,91 @@ export function generateSimulatedVehicles(
     features,
   };
 }
+
+/**
+ * Converts SmartRouteAlternatives into a GeoJSON FeatureCollection of LineStrings
+ */
+export function routesToGeoJSON(
+  routes: import('@/types/routing').SmartRouteAlternative[]
+): GeoJSON.FeatureCollection<GeoJSON.LineString> {
+  if (!Array.isArray(routes)) {
+    return { type: 'FeatureCollection', features: [] };
+  }
+
+  return {
+    type: 'FeatureCollection',
+    features: routes.map((route) => ({
+      type: 'Feature',
+      id: route.id,
+      geometry: {
+        type: 'LineString',
+        coordinates: route.geometry.coordinates,
+      },
+      properties: {
+        id: route.id,
+        routeId: route.routeId,
+        title: route.title,
+        badge: route.badge,
+        type: route.type,
+        distanceKm: route.distanceKm,
+        etaMinutes: route.etaMinutes,
+        emissionsKg: route.emissionsKg,
+        niuScore: route.niuScore,
+        isRecommended: route.isRecommended,
+        colorHex: route.colorHex,
+        congestionScore: route.congestionScore,
+        trafficLevel: route.trafficLevel,
+        recommendationReason: route.recommendationReason,
+      },
+    })),
+  };
+}
+
+/**
+ * Creates Origin and Destination waypoint markers GeoJSON FeatureCollection
+ */
+export function routeEndpointsToGeoJSON(
+  origin?: { coordinate: { latitude: number; longitude: number }; name?: string } | null,
+  destination?: { coordinate: { latitude: number; longitude: number }; name?: string } | null
+): GeoJSON.FeatureCollection<GeoJSON.Point> {
+  const features: GeoJSON.Feature<GeoJSON.Point>[] = [];
+
+  if (origin && typeof origin.coordinate?.latitude === 'number') {
+    features.push({
+      type: 'Feature',
+      id: 'point-origin',
+      geometry: {
+        type: 'Point',
+        coordinates: [origin.coordinate.longitude, origin.coordinate.latitude],
+      },
+      properties: {
+        id: 'origin',
+        label: 'A: Origin',
+        name: origin.name || 'Origin',
+        color: '#10b981',
+      },
+    });
+  }
+
+  if (destination && typeof destination.coordinate?.latitude === 'number') {
+    features.push({
+      type: 'Feature',
+      id: 'point-destination',
+      geometry: {
+        type: 'Point',
+        coordinates: [destination.coordinate.longitude, destination.coordinate.latitude],
+      },
+      properties: {
+        id: 'destination',
+        label: 'B: Destination',
+        name: destination.name || 'Destination',
+        color: '#06b6d4',
+      },
+    });
+  }
+
+  return {
+    type: 'FeatureCollection',
+    features,
+  };
+}

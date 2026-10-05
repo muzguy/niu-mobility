@@ -2,7 +2,6 @@ import { ApiResponse } from './api-response';
 import { OptimizationInput, OptimizationResult, Intersection } from '@/types/traffic';
 import { SimulationTrafficMode } from './simulation/simulation-engine';
 import { RideMatchResult, RideSearchQuery } from '@/types/carpool';
-import { RouteOption } from '@/types/routing';
 import { SustainabilityScore } from '@/types/impact';
 import { CityMobilityMetrics } from '@/types/mobility';
 
@@ -127,15 +126,26 @@ export async function apiSearchCarpool(query: RideSearchQuery) {
 /**
  * Calculate routes via API
  */
-export async function apiGetRoutes(origin: string, destination: string) {
-  return fetchApi<{
-    origin: string;
-    destination: string;
-    routes: RouteOption[];
-    recommendedRoute: RouteOption | null;
-  }>('/api/routes', {
+export async function apiGetRoutes(
+  origin: string,
+  destination: string,
+  options?: {
+    zoneId?: string;
+    objective?: string;
+    scenario?: string;
+    vehicleType?: string;
+  }
+) {
+  return fetchApi<import('@/types/routing').SmartRouteComparisonResult>('/api/routes', {
     method: 'POST',
-    body: JSON.stringify({ origin, destination }),
+    body: JSON.stringify({
+      origin,
+      destination,
+      zoneId: options?.zoneId,
+      objective: options?.objective,
+      scenario: options?.scenario,
+      vehicleType: options?.vehicleType,
+    }),
   });
 }
 

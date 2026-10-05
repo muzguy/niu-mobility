@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { RouteOption } from '@/types/routing';
-import { Clock, Leaf, Droplet, CheckCircle2 } from 'lucide-react';
+import { Clock, Leaf, Droplet, CheckCircle2, ShieldCheck, Zap } from 'lucide-react';
 
 interface RouteCardProps {
   route: RouteOption;
@@ -41,13 +41,14 @@ export function RouteCard({ route, isSelected, onSelect }: RouteCardProps) {
         };
       default:
         return {
-          badge: 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700',
-          borderActive: 'border-slate-400 dark:border-slate-600 bg-slate-50 dark:bg-slate-900',
+          badge: 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-500/30',
+          borderActive: 'border-emerald-400 dark:border-emerald-500/60 shadow-[0_0_15px_rgba(16,185,129,0.15)] bg-emerald-50/20 dark:bg-[#141c2e]',
         };
     }
   };
 
   const styles = getTypeHeaderStyles(route.type);
+  const niuScore = route.niuScore ?? 85;
 
   return (
     <div
@@ -59,22 +60,29 @@ export function RouteCard({ route, isSelected, onSelect }: RouteCardProps) {
       }`}
     >
       <div>
-        {/* Top Badges */}
+        {/* Top Badges & NIU Score */}
         <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <span className={`text-[10px] font-mono font-bold uppercase px-2 py-0.5 rounded border ${styles.badge}`}>
               {route.title}
             </span>
             {route.isRecommended && (
-              <span className="text-[10px] font-mono text-cyan-700 dark:text-cyan-400 bg-cyan-50 dark:bg-cyan-950/60 px-1.5 py-0.5 rounded border border-cyan-300 dark:border-cyan-500/30 font-semibold">
-                RECOMMENDED
+              <span className="text-[10px] font-mono text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-1.5 py-0.5 rounded border border-emerald-300 dark:border-emerald-500/30 font-semibold flex items-center gap-1">
+                <ShieldCheck className="w-3 h-3" />
+                NIU OPTIMAL
               </span>
             )}
           </div>
 
-          <span className={`text-[10px] font-medium px-2 py-0.5 rounded border ${getTrafficBadge(route.trafficLevel)}`}>
-            {route.trafficLevel} Traffic
-          </span>
+          <div className="flex items-center gap-1.5">
+            <span className={`text-[10px] font-medium px-2 py-0.5 rounded border ${getTrafficBadge(route.trafficLevel)}`}>
+              {route.trafficLevel} Flow
+            </span>
+            <div className="flex items-center gap-1 px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[10px] font-mono font-bold text-slate-800 dark:text-slate-200">
+              <Zap className="w-3 h-3 text-amber-500" />
+              <span>{niuScore}/100</span>
+            </div>
+          </div>
         </div>
 
         {/* ETA & Distance */}
@@ -97,13 +105,21 @@ export function RouteCard({ route, isSelected, onSelect }: RouteCardProps) {
           </div>
         </div>
 
+        {/* Deterministic Explanation & Rationale */}
+        {route.recommendationReason && (
+          <div className="mt-3 p-2 rounded-lg bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/80 text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed font-sans">
+            <strong className="text-slate-900 dark:text-slate-200">Analysis: </strong>
+            {route.recommendationReason}
+          </div>
+        )}
+
         {/* Corridor Description */}
-        <p className="mt-3 text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+        <p className="mt-2 text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
           {route.pathDescription}
         </p>
 
         {/* Key Corridors Tags */}
-        <div className="mt-3 flex flex-wrap gap-1.5">
+        <div className="mt-2.5 flex flex-wrap gap-1.5">
           {route.keyCorridors.map((c, i) => (
             <span
               key={i}
@@ -121,7 +137,7 @@ export function RouteCard({ route, isSelected, onSelect }: RouteCardProps) {
           <div className="p-2 rounded border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/50">
             <div className="text-[10px] text-slate-500 dark:text-slate-400 flex items-center justify-center gap-1">
               <Leaf className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
-              <span>CO2 Emitted</span>
+              <span>EST. CO2</span>
             </div>
             <div className="font-mono font-bold text-slate-800 dark:text-slate-200 mt-0.5">
               {route.estimatedCo2Kg} kg
@@ -141,7 +157,7 @@ export function RouteCard({ route, isSelected, onSelect }: RouteCardProps) {
           <div className="p-2 rounded border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/50">
             <div className="text-[10px] text-slate-500 dark:text-slate-400 flex items-center justify-center gap-1">
               <Clock className="w-3 h-3 text-amber-600 dark:text-amber-400" />
-              <span>Idle Delay</span>
+              <span>Signal Delay</span>
             </div>
             <div className="font-mono font-bold text-slate-800 dark:text-slate-200 mt-0.5">
               {route.idleDelayMinutes} min

@@ -356,14 +356,26 @@ describe('NIU Phase 8 — Geospatial Mobility Map Architecture Tests', () => {
         process.env.NEXT_PUBLIC_CARTO_API_KEY = 'test-carto-auth-token';
         const dark = getMapStyle(true) as StyleSpecification;
         const rasterSource = dark.sources['carto-dark'] as { tiles: string[] };
+        assert.ok(rasterSource.tiles[0].includes('/rastertiles/dark_all/'));
         assert.ok(rasterSource.tiles[0].includes('?key=test-carto-auth-token'));
 
         const light = getMapStyle(false) as StyleSpecification;
         const lightRaster = light.sources['carto-light'] as { tiles: string[] };
+        assert.ok(lightRaster.tiles[0].includes('/rastertiles/light_all/'));
         assert.ok(lightRaster.tiles[0].includes('?key=test-carto-auth-token'));
       } finally {
         process.env.NEXT_PUBLIC_CARTO_API_KEY = originalKey;
       }
+    });
+
+    test('CARTO credentials and full tile URLs are never leaked in diagnostics or test outputs', () => {
+      const hasKey = Boolean(process.env.NEXT_PUBLIC_CARTO_API_KEY?.trim());
+      const diagnosticConfigured = `CARTO key configured: ${hasKey}`;
+      const diagnosticAuth = hasKey ? 'CARTO tile request: authenticated' : 'CARTO tile request: unauthenticated';
+
+      assert.ok(!diagnosticConfigured.includes('?key='));
+      assert.ok(!diagnosticAuth.includes('?key='));
+      assert.ok(diagnosticConfigured.startsWith('CARTO key configured: '));
     });
 
     test('isWebGLSupported handles environments without window/document without crashing', () => {

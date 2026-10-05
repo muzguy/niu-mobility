@@ -72,11 +72,24 @@ export const routeRequestSchema = z.object({
   origin: z
     .string()
     .min(2, 'Origin must be at least 2 characters')
-    .max(100, 'Origin exceeds 100 characters'),
+    .max(120, 'Origin exceeds 120 characters'),
   destination: z
     .string()
     .min(2, 'Destination must be at least 2 characters')
-    .max(100, 'Destination exceeds 100 characters'),
+    .max(120, 'Destination exceeds 120 characters'),
+  zoneId: z.string().max(100).optional().default('greater-noida-core'),
+  objective: z
+    .enum(['NIU_OPTIMAL', 'FASTEST', 'SHORTEST', 'LOWEST_EMISSIONS', 'LOWEST_CONGESTION'])
+    .optional()
+    .default('NIU_OPTIMAL'),
+  scenario: z
+    .enum(['normal', 'rush_hour', 'emergency', 'optimized'])
+    .optional()
+    .default('normal'),
+  vehicleType: z
+    .enum(['petrol', 'diesel', 'hybrid', 'ev'])
+    .optional()
+    .default('petrol'),
 });
 
 export const emergencyPrioritySchema = z.object({

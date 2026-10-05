@@ -5,6 +5,10 @@ import type { StyleSpecification } from 'maplibre-gl';
  * Respects NEXT_PUBLIC_MAP_STYLE_URL if configured, otherwise falls back to
  * high-performance CARTO Dark Matter / Positron raster basemaps with OSM attribution.
  *
+ * Uses CARTO's official documented rastertiles endpoints:
+ *   - Dark Matter:    https://basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}.png?key=KEY
+ *   - Light Positron: https://basemaps.cartocdn.com/rastertiles/light_all/{z}/{x}/{y}.png?key=KEY
+ *
  * Appends the CARTO API key (process.env.NEXT_PUBLIC_CARTO_API_KEY) via the `key` query
  * parameter to authorize tile requests and avoid "API KEY REQUIRED" watermarks.
  */
@@ -30,10 +34,7 @@ export function getMapStyle(isDark: boolean): string | StyleSpecification {
         'carto-dark': {
           type: 'raster',
           tiles: [
-            `https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png${keyParam}`,
-            `https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png${keyParam}`,
-            `https://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png${keyParam}`,
-            `https://d.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png${keyParam}`,
+            `https://basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}.png${keyParam}`,
           ],
           tileSize: 256,
           attribution:
@@ -69,10 +70,7 @@ export function getMapStyle(isDark: boolean): string | StyleSpecification {
       'carto-light': {
         type: 'raster',
         tiles: [
-          `https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png${keyParam}`,
-          `https://b.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png${keyParam}`,
-          `https://c.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png${keyParam}`,
-          `https://d.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png${keyParam}`,
+          `https://basemaps.cartocdn.com/rastertiles/light_all/{z}/{x}/{y}.png${keyParam}`,
         ],
         tileSize: 256,
         attribution:

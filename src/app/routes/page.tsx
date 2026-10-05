@@ -13,19 +13,19 @@ export default function RoutesPage() {
         <div>
           <div className="flex items-center gap-2.5">
             <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
-              Smart Route Comparison & Eco-Navigation
+              Smart Route Optimization & Eco-Navigation
             </h1>
             <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20 font-semibold">
-              SIMULATED PROVIDER
+              TRAFFIC-AWARE GRAPH ENGINE
             </span>
           </div>
           <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 mt-1">
-            Compare Fastest, Balanced, and Greenest corridor alternatives with IPCC-calibrated carbon footprint modeling
+            Traffic-aware route optimization using real OSM road geometry and NIU&apos;s deterministic mobility simulation.
           </p>
         </div>
 
         <div className="text-xs font-mono text-slate-700 dark:text-slate-400 bg-slate-100 dark:bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 self-start sm:self-auto">
-          Route Profiles: <span className="text-emerald-600 dark:text-emerald-400 font-bold">Fastest · Balanced · Greenest</span>
+          Objectives: <span className="text-emerald-600 dark:text-emerald-400 font-bold">Optimal · Fastest · Greenest · Shortest</span>
         </div>
       </div>
 

@@ -16,20 +16,39 @@ import { MapStatus } from './map-status';
 import { MapLayerToggles, ZoneMapPayload } from '@/types/map';
 import { AlertCircle, RefreshCw } from 'lucide-react';
 import { SimulationTrafficMode } from '@/lib/simulation/simulation-engine';
+import { routeEndpointsToGeoJSON } from '@/lib/map/geojson-converter';
 
 interface MobilityMapProps {
   activeZoneId?: string;
   onSelectIntersection?: (id: string) => void;
+  onSelectRoute?: (routeId: string) => void;
   heightClass?: string;
+  routesGeoJSON?: GeoJSON.FeatureCollection<GeoJSON.LineString> | null;
+  selectedRouteId?: string | null;
+  originPoint?: { coordinate: { latitude: number; longitude: number }; name?: string } | null;
+  destinationPoint?: { coordinate: { latitude: number; longitude: number }; name?: string } | null;
 }
 
 export function MobilityMap({
   activeZoneId = 'greater-noida-core',
   onSelectIntersection,
+  onSelectRoute,
   heightClass = 'h-[520px] sm:h-[600px]',
+  routesGeoJSON = null,
+  selectedRouteId = null,
+  originPoint = null,
+  destinationPoint = null,
 }: MobilityMapProps) {
   const { simulationMode, selectIntersection } = useSimulation();
   const { isDark } = useTheme();
+
+  const onSelectRouteRef = useRef(onSelectRoute);
+  const onSelectIntersectionRef = useRef(onSelectIntersection);
+
+  useEffect(() => {
+    onSelectRouteRef.current = onSelectRoute;
+    onSelectIntersectionRef.current = onSelectIntersection;
+  });
 
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
@@ -133,10 +152,34 @@ export function MobilityMap({
       attributionControl: false,
     });
 
+    // Intercept MapLibre errors to prevent leaking raw CARTO tile URLs containing API keys in console/server output
+    map.on('error', (event) => {
+      const err = event?.error;
+      const rawUrl =
+        typeof err === 'object' && err !== null && 'url' in err
+          ? String((err as { url?: string }).url)
+          : '';
+
+      // If the error relates to CARTO basemap tiles or contains key query parameters
+      if (rawUrl && (rawUrl.includes('cartocdn.com') || rawUrl.includes('key='))) {
+        // Strip sensitive credentials: never log process.env.NEXT_PUBLIC_CARTO_API_KEY or full URL with key
+        return;
+      }
+    });
+
     map.addControl(new AttributionControl({ compact: true }), 'bottom-right');
 
     map.on('load', () => {
       setMapLoaded(true);
+
+      // Safe diagnostic logging in development mode without exposing credentials or full URLs
+      if (process.env.NODE_ENV === 'development') {
+        const isCartoConfigured = Boolean(process.env.NEXT_PUBLIC_CARTO_API_KEY?.trim());
+        console.info(`CARTO key configured: ${isCartoConfigured}`);
+        if (isCartoConfigured) {
+          console.info('CARTO tile request: authenticated');
+        }
+      }
 
       // 1. Road Network Sources & Layers
       map.addSource('roads-source', {
@@ -262,7 +305,99 @@ export function MobilityMap({
         },
       });
 
-      // 4. Interactive Hover Cursors
+      // 4. Routes GeoJSON Source & Polyline Layers
+      map.addSource('routes-source', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] },
+      });
+
+      map.addLayer({
+        id: 'routes-casing',
+        type: 'line',
+        source: 'routes-source',
+        layout: { 'line-join': 'round', 'line-cap': 'round' },
+        paint: {
+          'line-color': isDark ? '#000000' : '#ffffff',
+          'line-width': 6,
+          'line-opacity': 0.7,
+        },
+      });
+
+      map.addLayer({
+        id: 'routes-line',
+        type: 'line',
+        source: 'routes-source',
+        layout: { 'line-join': 'round', 'line-cap': 'round' },
+        paint: {
+          'line-color': '#10b981',
+          'line-width': 4.5,
+          'line-opacity': 0.85,
+        },
+      });
+
+      // Route Waypoint Pins Source & Layers (Origin & Destination)
+      map.addSource('route-endpoints-source', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] },
+      });
+
+      map.addLayer({
+        id: 'route-endpoints-glow',
+        type: 'circle',
+        source: 'route-endpoints-source',
+        paint: {
+          'circle-radius': 14,
+          'circle-color': ['get', 'color'],
+          'circle-opacity': 0.35,
+        },
+      });
+
+      map.addLayer({
+        id: 'route-endpoints-circle',
+        type: 'circle',
+        source: 'route-endpoints-source',
+        paint: {
+          'circle-radius': 8,
+          'circle-color': ['get', 'color'],
+          'circle-stroke-width': 2.5,
+          'circle-stroke-color': '#ffffff',
+        },
+      });
+
+      map.addLayer({
+        id: 'route-endpoints-label',
+        type: 'symbol',
+        source: 'route-endpoints-source',
+        layout: {
+          'text-field': ['get', 'label'],
+          'text-size': 11,
+          'text-font': ['Open Sans Semibold'],
+          'text-offset': [0, 1.4],
+          'text-anchor': 'top',
+        },
+        paint: {
+          'text-color': isDark ? '#ffffff' : '#0f172a',
+          'text-halo-color': isDark ? '#000000' : '#ffffff',
+          'text-halo-width': 1.5,
+        },
+      });
+
+      map.on('mouseenter', 'routes-line', () => {
+        map.getCanvas().style.cursor = 'pointer';
+      });
+      map.on('mouseleave', 'routes-line', () => {
+        map.getCanvas().style.cursor = '';
+      });
+
+      map.on('click', 'routes-line', (e) => {
+        if (!e.features || e.features.length === 0) return;
+        const p = e.features[0].properties;
+        if (p?.id && onSelectRouteRef.current) {
+          onSelectRouteRef.current(p.id);
+        }
+      });
+
+      // 5. Interactive Hover Cursors
       map.on('mouseenter', 'road-traffic', () => {
         map.getCanvas().style.cursor = 'pointer';
       });
@@ -312,8 +447,8 @@ export function MobilityMap({
         const feature = e.features[0];
         const p = feature.properties || {};
 
-        if (p.id && onSelectIntersection) {
-          onSelectIntersection(p.id);
+        if (p.id && onSelectIntersectionRef.current) {
+          onSelectIntersectionRef.current(p.id);
         }
         if (p.id) {
           selectIntersection(p.id);
@@ -352,7 +487,7 @@ export function MobilityMap({
       mapRef.current = null;
       setMapLoaded(false);
     };
-  }, [isClient, webGLAvailable, isDark, onSelectIntersection, selectIntersection]);
+  }, [isClient, webGLAvailable, isDark, selectIntersection]);
 
   // Update Data Sources and Camera when MapPayload changes
   useEffect(() => {
@@ -393,6 +528,80 @@ export function MobilityMap({
       });
     }
   }, [mapLoaded, mapPayload]);
+
+  // Update Routes and Waypoint Pins when routesGeoJSON or endpoints change
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapLoaded) return;
+
+    const routesSource = map.getSource('routes-source') as GeoJSONSource | undefined;
+    if (routesSource) {
+      routesSource.setData(routesGeoJSON || { type: 'FeatureCollection', features: [] });
+    }
+
+    const endpointsSource = map.getSource('route-endpoints-source') as GeoJSONSource | undefined;
+    if (endpointsSource) {
+      endpointsSource.setData(routeEndpointsToGeoJSON(originPoint, destinationPoint));
+    }
+
+    // Dynamic styling update for selected route
+    if (map.getLayer('routes-line')) {
+      map.setPaintProperty('routes-line', 'line-color', [
+        'case',
+        ['==', ['get', 'id'], selectedRouteId || ''],
+        ['get', 'colorHex'],
+        ['get', 'isRecommended'],
+        '#10b981',
+        '#64748b',
+      ]);
+      map.setPaintProperty('routes-line', 'line-width', [
+        'case',
+        ['==', ['get', 'id'], selectedRouteId || ''],
+        6,
+        3.5,
+      ]);
+      map.setPaintProperty('routes-line', 'line-opacity', [
+        'case',
+        ['==', ['get', 'id'], selectedRouteId || ''],
+        1.0,
+        0.45,
+      ]);
+    }
+
+    // If routes are provided, fit camera smoothly to the route extent
+    if (routesGeoJSON && routesGeoJSON.features && routesGeoJSON.features.length > 0) {
+      let minLng = Infinity;
+      let minLat = Infinity;
+      let maxLng = -Infinity;
+      let maxLat = -Infinity;
+
+      for (const feat of routesGeoJSON.features) {
+        if (feat.geometry && feat.geometry.coordinates) {
+          for (const coord of feat.geometry.coordinates) {
+            const [lng, lat] = coord;
+            if (lng < minLng) minLng = lng;
+            if (lng > maxLng) maxLng = lng;
+            if (lat < minLat) minLat = lat;
+            if (lat > maxLat) maxLat = lat;
+          }
+        }
+      }
+
+      if (minLng < maxLng && minLat < maxLat) {
+        map.fitBounds(
+          [
+            [minLng, minLat],
+            [maxLng, maxLat],
+          ],
+          {
+            padding: 55,
+            duration: 1000,
+            maxZoom: 15.5,
+          }
+        );
+      }
+    }
+  }, [mapLoaded, routesGeoJSON, selectedRouteId, originPoint, destinationPoint]);
 
   // Update Layer Visibility Toggles
   useEffect(() => {

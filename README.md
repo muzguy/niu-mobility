@@ -205,10 +205,65 @@ npm run start
 
 ---
 
-## 12. Development Roadmap
+## 12. Phase 9 — Traffic-Aware Smart Routing Engine
 
-- **Phases 1–8 (Complete)**: Architectural foundation, Mobility Command Center, interactive vector map, traffic intelligence, signal optimizer, deterministic carpool matching, eco-routing, sustainability engine, and emergency vehicle pre-emption simulation.
-- **Phase 9 (Future)**: Mapbox vector tiles, Supabase database persistence, real-time WebSocket fleet feeds.
-- **Phase 10 (Future)**: Python/FastAPI ML service for predictive traffic forecasting (GNN/LSTM).
+NIU Smart Routes operates as a fully deterministic, graph-based traffic-aware routing engine that consumes real OpenStreetMap road geometry from Mobility Zones and solves multi-objective pathfinding.
+
+### 12.1 Road Graph Architecture
+The road network is projected into a directed `RoadGraph` consisting of:
+- **`RoadGraphNode`**: Road junctions and signalized intersections, containing coordinates, connectivity indices, signalization status, and scenario-dependent intersection delay.
+- **`RoadGraphEdge`**: Directed road links capturing real LineString geometry, lane count, highway classification, free-flow speed, BPR current speed, volume-to-capacity ($V/C$) ratio, one-way constraints, and thermodynamic CO2 estimates.
+- **Bi-directional & One-Way Handling**: Segments with `oneWay: true` instantiate a single directed forward edge; bidirectional roads instantiate dual directed edges with reversed coordinate orientation.
+- **Snapping Engine**: Deterministically projects query coordinates to the nearest road node using Haversine geodesic distance with an enforced 5000m zone boundary threshold.
+
+### 12.2 Routing Algorithm & Multi-Path Diversity
+- **Algorithm**: A* search using an admissible and consistent lower-bound heuristic ($h(u, v) = \text{haversine}(u, v) / v_{\max}$).
+- **Alternative Route Generation**: Generates up to 3 diverse physical alternatives (e.g. NIU Optimal Arterial, Peripheral Bypass, Eco Greenway) using multi-objective exploration and adaptive edge penalties (2.2x to 2.8x) with corridor overlap divergence validation (`arePathsDistinct < 0.85`).
+
+### 12.3 Edge Cost Model & Configurable Weights
+Every edge receives a dynamic cost based on its simulated traffic state:
+
+$$\text{EdgeCost} = w_{\text{time}} \cdot T + w_{\text{delay}} \cdot D + w_{\text{congestion}} \cdot C + w_{\text{emissions}} \cdot E + w_{\text{distance}} \cdot S$$
+
+Where:
+- $T = \text{lengthMeters} / \text{currentSpeedMps}$ (BPR speed-flow travel time)
+- $D = \text{intersectionDelaySeconds}$ (Webster signal delay at target node)
+- $C = T \cdot \max(0, V/C - 0.5) \cdot 1.5$ (Congestion queue penalty)
+- $E = \text{estimatedEmissionsKg} \cdot 120$ (Social cost of carbon equivalent)
+- $S = \text{lengthMeters} \cdot 0.01$ (Distance scale factor)
+
+| Routing Objective | Time ($w_t$) | Congestion ($w_c$) | Emissions ($w_e$) | Intersection Delay ($w_d$) | Distance ($w_s$) |
+|---|---|---|---|---|---|
+| **NIU_OPTIMAL** (Default) | 1.00 | 0.40 | 0.25 | 0.50 | 0.05 |
+| **FASTEST** | 1.00 | 0.15 | 0.00 | 0.60 | 0.00 |
+| **SHORTEST** | 0.00 | 0.00 | 0.00 | 0.00 | 1.00 |
+| **LOWEST_EMISSIONS** | 0.20 | 0.25 | 1.20 | 0.30 | 0.30 |
+| **LOWEST_CONGESTION** | 0.30 | 1.50 | 0.10 | 0.40 | 0.00 |
+
+### 12.4 Normalized NIU Route Score (0–100)
+Every computed alternative is scored transparently on a 0–100 scale:
+- **35% Travel Time Efficiency**: Relative to lowest transit duration across alternatives.
+- **30% Congestion Index**: Inversely proportional to volume-to-capacity load ($100 - \text{congestionScore}$).
+- **20% Carbon Footprint**: Relative to lowest emissions corridor.
+- **15% Intersection Signal Delay**: Penalty based on total junction wait seconds.
+
+The route with the highest NIU Score is recommended with an automated, metric-derived justification (e.g., *"1.6 min faster with lower congestion and 40% lower estimated CO2"*).
+
+### 12.5 Tripartite Data Provenance & Limitations
+- **Road Network**: `REAL — OSM / SEED` (Extracted from OpenStreetMap geometry).
+- **Traffic State**: `SIMULATED — NIU SYNTHETIC DEMAND ENGINE` (BPR speed-flow demand).
+- **Route Computation**: `NIU COMPUTED` (Deterministic A* Graph Solver).
+- **Emissions**: `ESTIMATED — IPCC/CEA CALIBRATED` (Thermodynamic fuel burn factors).
+
+> [!WARNING]
+> **SYSTEM LIMITATION NOTICE**
+> NIU is not yet connected to live physical road sensors or proprietary turn-by-turn navigation providers. All routes, delays, and emissions represent traffic-aware route optimization using real OSM road geometry and NIU's deterministic mobility simulation.
+
+---
+
+## 13. Development Roadmap
+
+- **Phases 1–9 (Complete)**: Architectural foundation, Mobility Command Center, interactive vector map (MapLibre GL JS + CARTO basemap), traffic intelligence, Webster signal optimizer, deterministic carpool matching, traffic-aware smart routing engine, sustainability engine, and emergency vehicle pre-emption simulation.
+- **Phase 10 (Future)**: Python/FastAPI ML service for predictive traffic forecasting (GNN/LSTM) and connected physical sensor ingestion.
 
 For complete milestone tracking, see [NIU_ROADMAP.md](file:///c:/Users/itsro/Downloads/niu-mobility-main/niu-mobility-main/NIU_ROADMAP.md).
