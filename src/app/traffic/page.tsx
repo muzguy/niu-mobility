@@ -13,6 +13,8 @@ import { apiSetSimulationScenario, apiGetTrafficState } from '@/lib/api-client';
 import { Intersection } from '@/types/traffic';
 import { MobilityMap } from '@/components/map/mobility-map';
 import { PredictiveTrafficSection } from '@/components/traffic/predictive-traffic-section';
+import { WhatIfIncidentSimulator } from '@/components/traffic/what-if-incident-simulator';
+import { SimulatedIncident } from '@/types/incident';
 
 export default function TrafficPage() {
   const {
@@ -26,6 +28,7 @@ export default function TrafficPage() {
 
   const [activeZoneId, setActiveZoneId] = React.useState('greater-noida-core');
   const [mapTrafficHorizon, setMapTrafficHorizon] = React.useState<'CURRENT' | '15MIN' | '30MIN'>('CURRENT');
+  const [simulatedIncident, setSimulatedIncident] = React.useState<SimulatedIncident | null>(null);
   const [zoneTelemetry, setZoneTelemetry] = React.useState<{
     intersections: Intersection[];
     metrics: typeof metrics;
@@ -198,9 +201,18 @@ export default function TrafficPage() {
           }}
           trafficHorizon={mapTrafficHorizon}
           onHorizonChange={setMapTrafficHorizon}
+          activeIncident={simulatedIncident}
           heightClass="h-[520px] sm:h-[620px]"
         />
       </div>
+
+      {/* WHAT IF? — MOBILITY INCIDENT SIMULATOR (Accident, Road Work, Lane Blockage, Emergency) */}
+      <WhatIfIncidentSimulator
+        activeZoneId={activeZoneId}
+        intersections={activeIntersections}
+        simulationMode={simulationMode}
+        onIncidentChange={setSimulatedIncident}
+      />
 
       {/* PREDICTIVE TRAFFIC INTELLIGENCE SECTION (NOW, +5M, +15M, +30M, Trajectory Chart & Dynamic Recommendations) */}
       <PredictiveTrafficSection

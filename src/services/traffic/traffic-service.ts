@@ -207,7 +207,44 @@ export class TrafficService {
       scenario: effectiveScenario,
     });
   }
+
+  /**
+   * Simulates a What-If traffic incident on top of a Mobility Zone.
+   * Pure model overlay: does not mutate persistent seed data.
+   */
+  public async simulateIncident(options: {
+    zoneId?: string;
+    type: import('@/types/incident').IncidentType;
+    intersectionId: string;
+    severity: import('@/types/incident').IncidentSeverity;
+    durationMinutes: import('@/types/incident').IncidentDurationMinutes;
+    baseHour?: number;
+    scenario?: SimulationTrafficMode;
+  }): Promise<import('@/types/incident').IncidentSimulationResult> {
+    const simState = getBackendSimulationState();
+    const effectiveScenario = options.scenario || simState.simulationMode;
+    const targetZoneId = options.zoneId || 'greater-noida-core';
+
+    const { locationService } = await import('../location/location-service');
+    let zone = await locationService.getMobilityZone(targetZoneId);
+
+    if (!zone) {
+      const { SEEDED_MOBILITY_ZONES } = await import('@/data/mobility-zones-seed');
+      zone = SEEDED_MOBILITY_ZONES[0];
+    }
+
+    const { simulateMobilityIncident } = await import('@/lib/traffic/incident-simulator');
+    return simulateMobilityIncident(zone, {
+      type: options.type,
+      intersectionId: options.intersectionId,
+      severity: options.severity,
+      durationMinutes: options.durationMinutes,
+      baseHour: options.baseHour,
+      scenario: effectiveScenario,
+    });
+  }
 }
 
 export const trafficService = new TrafficService();
+
 

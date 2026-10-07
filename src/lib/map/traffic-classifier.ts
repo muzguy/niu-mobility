@@ -30,7 +30,13 @@ export function classifyRoadTraffic(
   road: GeoRoadSegment,
   scenario: SimulationTrafficMode = 'normal',
   hourOfDay?: number,
-  minutesAhead: number = 0
+  minutesAhead: number = 0,
+  incidentContext?: {
+    affectedRoadIds: string[];
+    capacityFactor: number;
+    speedFactor: number;
+    temporalFactor: number;
+  }
 ): MapRoadTraffic {
   const baseHour = hourOfDay ?? new Date().getHours();
   const effectiveHour = (baseHour + (minutesAhead || 0) / 60) % 24;
@@ -38,11 +44,24 @@ export function classifyRoadTraffic(
   const lanes = Math.max(1, road.lanes || (roadType === 'motorway' || roadType === 'trunk' ? 3 : 2));
 
   const baseCapacity = BASE_CAPACITY_PER_LANE[roadType] || 1000;
-  const capacityVph = baseCapacity * lanes;
-  const freeFlowSpeed = road.maxSpeedKph || FREE_FLOW_SPEED_KMH[roadType] || 45;
+  let capacityVph = baseCapacity * lanes;
+  let freeFlowSpeed = road.maxSpeedKph || FREE_FLOW_SPEED_KMH[roadType] || 45;
+
+  // Apply simulated incident capacity/speed choke if road is affected
+  if (
+    incidentContext &&
+    incidentContext.temporalFactor > 0 &&
+    incidentContext.affectedRoadIds.includes(road.id)
+  ) {
+    const effectiveCapFactor = 1 - (1 - incidentContext.capacityFactor) * incidentContext.temporalFactor;
+    const effectiveSpeedFactor = 1 - (1 - incidentContext.speedFactor) * incidentContext.temporalFactor;
+    capacityVph = Math.max(200, Math.round(capacityVph * effectiveCapFactor));
+    freeFlowSpeed = Math.max(15, Math.round(freeFlowSpeed * effectiveSpeedFactor));
+  }
 
   // Diurnal demand multiplier (peaks at 08:00-10:00 and 16:30-19:30)
   let hourMultiplier = 0.55;
+
   if (effectiveHour >= 8 && effectiveHour <= 10.5) hourMultiplier = 1.35;
   else if (effectiveHour >= 12 && effectiveHour <= 14) hourMultiplier = 0.95;
   else if (effectiveHour >= 16 && effectiveHour <= 19.5) hourMultiplier = 1.45;

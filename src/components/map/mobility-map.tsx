@@ -56,6 +56,7 @@ interface MobilityMapProps {
   showDemoRoutePicker?: boolean;
   trafficHorizon?: MapTrafficHorizon;
   onHorizonChange?: (horizon: MapTrafficHorizon) => void;
+  activeIncident?: import('@/types/incident').SimulatedIncident | null;
 }
 
 export function MobilityMap({
@@ -70,7 +71,9 @@ export function MobilityMap({
   showDemoRoutePicker = true,
   trafficHorizon,
   onHorizonChange,
+  activeIncident = null,
 }: MobilityMapProps) {
+
 
   const { simulationMode, selectIntersection, emergencyCorridor } = useSimulation();
   const { isDark } = useTheme();
@@ -187,9 +190,21 @@ export function MobilityMap({
     let isMounted = true;
 
     async function loadZoneData() {
+      const seed = SEEDED_MOBILITY_ZONES.find((z) => z.id === activeZoneId) || SEEDED_MOBILITY_ZONES[0];
+      const targetInter = activeIncident ? seed.intersections.find((i) => i.id === activeIncident.intersectionId) : null;
+      const incidentContext = activeIncident && targetInter ? {
+        affectedRoadIds: targetInter.connectedRoadIds,
+        capacityFactor: activeIncident.severity === 'major' ? 0.28 : activeIncident.severity === 'moderate' ? 0.50 : 0.70,
+        speedFactor: activeIncident.severity === 'major' ? 0.45 : activeIncident.severity === 'moderate' ? 0.65 : 0.85,
+        temporalFactor: minutesAhead <= activeIncident.durationMinutes ? 1.0 : (minutesAhead - activeIncident.durationMinutes <= 10 ? 0.25 : 0.0),
+      } : undefined;
+
       try {
         const res = await apiGetZoneMapPayload(activeZoneId, simulationMode, minutesAhead);
         if (isMounted && res.success && res.data) {
+          if (incidentContext) {
+            res.data.roadNetwork = roadsToGeoJSON(seed.roads, simulationMode as SimulationTrafficMode, undefined, minutesAhead, incidentContext);
+          }
           setMapPayload(res.data);
           setLoadingPayload(false);
           return;
@@ -199,14 +214,13 @@ export function MobilityMap({
       }
 
       if (!isMounted) return;
-      const seed = SEEDED_MOBILITY_ZONES.find((z) => z.id === activeZoneId) || SEEDED_MOBILITY_ZONES[0];
       const fallbackPayload: ZoneMapPayload = {
         zoneId: seed.id,
         zoneName: seed.name,
         center: [seed.center.longitude, seed.center.latitude],
         radiusMeters: seed.radiusMeters,
         boundingBox: seed.boundingBox,
-        roadNetwork: roadsToGeoJSON(seed.roads, simulationMode as SimulationTrafficMode, undefined, minutesAhead),
+        roadNetwork: roadsToGeoJSON(seed.roads, simulationMode as SimulationTrafficMode, undefined, minutesAhead, incidentContext),
         intersections: intersectionsToGeoJSON(seed.intersections),
         dataAvailability: seed.dataAvailability,
         provenance: seed.provenance,
@@ -221,7 +235,8 @@ export function MobilityMap({
     return () => {
       isMounted = false;
     };
-  }, [activeZoneId, simulationMode, minutesAhead]);
+  }, [activeZoneId, simulationMode, minutesAhead, activeIncident]);
+
 
 
   // Initialize MapLibre GL Instance
@@ -544,11 +559,75 @@ export function MobilityMap({
         },
       });
 
-      // 7. Simulated Vehicles Source & Layers
+      // 7. Simulated Incident Marker Source & Layers
+      map.addSource('incident-marker-source', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] },
+      });
+
+      map.addLayer({
+        id: 'incident-marker-halo',
+        type: 'circle',
+        source: 'incident-marker-source',
+        paint: {
+          'circle-radius': 18,
+          'circle-color': '#f43f5e',
+          'circle-opacity': 0.35,
+          'circle-stroke-width': 2,
+          'circle-stroke-color': '#e11d48',
+          'circle-stroke-opacity': 0.9,
+        },
+      });
+
+      map.addLayer({
+        id: 'incident-marker-pin',
+        type: 'circle',
+        source: 'incident-marker-source',
+        paint: {
+          'circle-radius': 8,
+          'circle-color': '#e11d48',
+          'circle-stroke-width': 2.5,
+          'circle-stroke-color': '#ffffff',
+        },
+      });
+
+      // Incident Marker Hover & Click Popup
+      map.on('mouseenter', 'incident-marker-pin', () => {
+        map.getCanvas().style.cursor = 'pointer';
+      });
+      map.on('mouseleave', 'incident-marker-pin', () => {
+        map.getCanvas().style.cursor = '';
+      });
+      map.on('click', 'incident-marker-pin', (e) => {
+        if (!e.features || e.features.length === 0) return;
+        const p = e.features[0].properties || {};
+        new Popup({ offset: 12, closeButton: true, className: 'niu-map-popup' })
+          .setLngLat(e.lngLat)
+          .setHTML(
+            `<div class="p-2.5 text-xs font-sans space-y-1.5 min-w-[220px]">
+              <div class="flex items-center justify-between border-b pb-1 font-bold text-rose-600">
+                <span>⚠️ ${p.typeLabel || 'SIMULATED INCIDENT'}</span>
+                <span class="text-[9px] font-mono px-1.5 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-200 uppercase">${p.severity || 'MAJOR'}</span>
+              </div>
+              <div class="text-[11px] text-slate-700 space-y-0.5 pt-0.5">
+                <div><strong>Location:</strong> ${p.intersectionName || 'Target Junction'}</div>
+                <div><strong>Duration:</strong> ${p.durationMinutes || 20} min</div>
+                <div><strong>Impact:</strong> Corridor Capacity Reduced</div>
+              </div>
+              <div class="border-t pt-1 text-[9px] font-mono text-slate-400">
+                WHAT-IF USER SCENARIO • NOT SENSOR DETECTED
+              </div>
+            </div>`
+          )
+          .addTo(map);
+      });
+
+      // 8. Simulated Vehicles Source & Layers
       map.addSource('vehicles-source', {
         type: 'geojson',
         data: { type: 'FeatureCollection', features: [] },
       });
+
 
       // Ambulance Strobe Ring (visible for ambulance vehicle)
       map.addLayer({
@@ -893,7 +972,47 @@ export function MobilityMap({
     activeDestinationPoint,
   ]);
 
+  // Synchronize Incident Marker
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapLoaded) return;
+
+    const source = map.getSource('incident-marker-source') as GeoJSONSource | undefined;
+    if (!source) return;
+
+    if (activeIncident && activeIncident.coordinates) {
+      source.setData({
+        type: 'FeatureCollection',
+        features: [
+          {
+            type: 'Feature',
+            geometry: {
+              type: 'Point',
+              coordinates: [activeIncident.coordinates.lng, activeIncident.coordinates.lat],
+            },
+            properties: {
+              id: activeIncident.id,
+              typeLabel: activeIncident.type.replace('_', ' ').toUpperCase(),
+              severity: activeIncident.severity,
+              durationMinutes: activeIncident.durationMinutes,
+              intersectionName: activeIncident.intersectionName,
+            },
+          },
+        ],
+      });
+
+      map.flyTo({
+        center: [activeIncident.coordinates.lng, activeIncident.coordinates.lat],
+        zoom: Math.max(map.getZoom(), 14.5),
+        duration: 900,
+      });
+    } else {
+      source.setData({ type: 'FeatureCollection', features: [] });
+    }
+  }, [mapLoaded, activeIncident]);
+
   // Update Layer Visibility Toggles & Emergency mode
+
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapLoaded) return;

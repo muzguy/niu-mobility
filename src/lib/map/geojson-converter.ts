@@ -11,7 +11,13 @@ export function roadsToGeoJSON(
   roads: GeoRoadSegment[],
   scenario: SimulationTrafficMode = 'normal',
   hourOfDay?: number,
-  minutesAhead: number = 0
+  minutesAhead: number = 0,
+  incidentContext?: {
+    affectedRoadIds: string[];
+    capacityFactor: number;
+    speedFactor: number;
+    temporalFactor: number;
+  }
 ): GeoJSON.FeatureCollection<GeoJSON.LineString> {
   if (!Array.isArray(roads)) {
     return { type: 'FeatureCollection', features: [] };
@@ -47,7 +53,8 @@ export function roadsToGeoJSON(
       continue;
     }
 
-    const traffic = classifyRoadTraffic(road, scenario, hourOfDay, minutesAhead);
+    const traffic = classifyRoadTraffic(road, scenario, hourOfDay, minutesAhead, incidentContext);
+
 
 
     features.push({

@@ -138,4 +138,17 @@ export const trafficPredictionSchema = z.object({
   hour: z.coerce.number().int().min(0).max(23).optional(),
 });
 
+export const incidentSimulationSchema = z.object({
+  zoneId: z.string().max(100).optional().default('greater-noida-core'),
+  type: z.enum(['accident', 'road_work', 'lane_blockage', 'emergency']),
+  intersectionId: z.string().min(1, 'intersectionId is required').max(100),
+  severity: z.enum(['minor', 'moderate', 'major']),
+  durationMinutes: z.coerce.number().pipe(z.union([z.literal(10), z.literal(20), z.literal(30)])),
+  baseHour: z.coerce.number().int().min(0).max(23).optional(),
+  scenario: z
+    .enum(['normal', 'rush_hour', 'emergency', 'optimized'])
+    .optional(),
+});
+
+
 

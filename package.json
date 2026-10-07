@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "tsx --test tests/map-architecture.test.ts tests/smart-routing.test.ts tests/demo-routes-animation.test.ts tests/traffic-prediction.test.ts"
+    "test": "tsx --test tests/map-architecture.test.ts tests/smart-routing.test.ts tests/demo-routes-animation.test.ts tests/traffic-prediction.test.ts tests/incident-simulator.test.ts"
 
   },
   "dependencies": {

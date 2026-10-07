@@ -262,5 +262,27 @@ export async function apiGetTrafficPrediction(params?: {
   );
 }
 
+/**
+ * Simulate What-If Mobility Incident scenario
+ */
+export async function apiSimulateIncident(params: {
+  zoneId?: string;
+  type: import('@/types/incident').IncidentType;
+  intersectionId: string;
+  severity: import('@/types/incident').IncidentSeverity;
+  durationMinutes: import('@/types/incident').IncidentDurationMinutes;
+  baseHour?: number;
+  scenario?: string;
+}) {
+  return fetchApi<import('@/types/incident').IncidentSimulationResult>(
+    '/api/traffic/incident/simulate',
+    {
+      method: 'POST',
+      body: JSON.stringify(params),
+    }
+  );
+}
+
+
 
 
