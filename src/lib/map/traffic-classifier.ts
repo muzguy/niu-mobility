@@ -118,12 +118,12 @@ export function classifyRoadTraffic(
 export function getTrafficStateColor(state: TrafficState): string {
   switch (state) {
     case 'FREE_FLOW':
-      return '#10b981'; // Emerald
+      return '#10b981'; // Green: Low Congestion / Free Flow
     case 'MODERATE':
-      return '#f59e0b'; // Amber / Yellow
+      return '#f59e0b'; // Yellow: Moderate Congestion
     case 'CONGESTED':
-      return '#f97316'; // Orange
+      return '#ef4444'; // Red: Congested
     case 'SEVERE':
-      return '#ef4444'; // Red
+      return '#ef4444'; // Red: Severe Congestion
   }
 }

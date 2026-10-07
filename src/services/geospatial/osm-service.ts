@@ -60,6 +60,17 @@ export class OSMGeoProvider implements GeoProvider {
         trimmed.includes(item.id.replace(/-/g, ' '))
     );
 
+    const exactSeedMatch = seedMatches.find(
+      (item) =>
+        item.name.toLowerCase() === trimmed ||
+        item.id.toLowerCase() === trimmed ||
+        item.id.replace(/-/g, ' ').toLowerCase() === trimmed
+    );
+    if (exactSeedMatch) {
+      geoCache.set(cacheKey, [exactSeedMatch], 3600);
+      return [exactSeedMatch];
+    }
+
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 3500);

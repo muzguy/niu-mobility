@@ -206,12 +206,19 @@ export function buildEmergencyCorridorGeoJSON(
 }
 
 /**
- * Generates deterministic simulated vehicles along the road network
+ * Generates deterministic simulated vehicles along the road network.
+ * Vehicles visually respond to the active simulation scenario:
+ *  - NORMAL: steady cruising velocity, EV pools & standard commuters
+ *  - RUSH_HOUR: slower progress (BPR speed reduction), higher queuing/bunching, congested red/yellow states
+ *  - EMERGENCY: civilian vehicles yield/slow down, single dedicated AMB-108 ambulance races along priority corridor
+ *  - OPTIMIZED: Webster adaptive signal splits enable synchronized green wave flow, higher cruising speed
  */
 export function generateSimulatedVehicles(
   roads: GeoRoadSegment[],
   tickOffset: number = 0,
-  maxVehicles: number = 18
+  maxVehicles: number = 18,
+  scenario: SimulationTrafficMode = 'normal',
+  emergencyCorridor?: import('@/types/traffic').EmergencyCorridor | null
 ): GeoJSON.FeatureCollection<GeoJSON.Point> {
   const features: GeoJSON.Feature<GeoJSON.Point>[] = [];
   if (!Array.isArray(roads) || roads.length === 0) {
@@ -220,6 +227,20 @@ export function generateSimulatedVehicles(
 
   const validRoads = roads.filter((r) => r.coordinates && r.coordinates.length >= 2);
   if (validRoads.length === 0) return { type: 'FeatureCollection', features };
+
+  // Scenario-specific kinematics & colors
+  let speedRate = 0.04;
+  let baseSpeedKph = 38;
+  if (scenario === 'rush_hour') {
+    speedRate = 0.018; // Congested slow crawl
+    baseSpeedKph = 18;
+  } else if (scenario === 'emergency') {
+    speedRate = 0.015; // Civilian vehicles yield
+    baseSpeedKph = 20;
+  } else if (scenario === 'optimized') {
+    speedRate = 0.055; // Webster synchronized progression
+    baseSpeedKph = 48;
+  }
 
   let count = 0;
   for (let rIdx = 0; rIdx < validRoads.length && count < maxVehicles; rIdx++) {
@@ -230,7 +251,7 @@ export function generateSimulatedVehicles(
     for (let vIdx = 0; vIdx < numVehiclesOnRoad && count < maxVehicles; vIdx++) {
       // Deterministic progress along polyline based on road index and time tick
       const baseProgress = (vIdx * 0.5 + (rIdx * 0.17)) % 1.0;
-      const progress = (baseProgress + (tickOffset * 0.04) / Math.max(1, road.coordinates.length)) % 1.0;
+      const progress = (baseProgress + (tickOffset * speedRate) / Math.max(1, road.coordinates.length)) % 1.0;
 
       // Interpolate coordinate along segments
       const segmentFraction = progress * (coords.length - 1);
@@ -249,7 +270,26 @@ export function generateSimulatedVehicles(
       const heading = (Math.atan2(dLng, dLat) * 180) / Math.PI;
 
       const isEV = (rIdx + vIdx) % 3 === 0;
-      const isAmbulance = count === 0 && rIdx === 0;
+
+      // Visual styling mapped to scenario
+      let color = isEV ? '#10b981' : '#38bdf8';
+      let status = isEV ? 'EV Pool Shared' : 'Standard Commuter';
+      let speedKph = Math.round((road.maxSpeedKph ? road.maxSpeedKph * 0.8 : baseSpeedKph) * (isEV ? 1.05 : 0.95));
+
+      if (scenario === 'rush_hour') {
+        const isCongested = (rIdx + vIdx) % 2 === 0;
+        color = isCongested ? '#ef4444' : '#f59e0b'; // Red / Yellow
+        status = isCongested ? 'Congested / Queueing' : 'Moderate Bottleneck';
+        speedKph = Math.round(baseSpeedKph * (0.8 + (rIdx % 3) * 0.15));
+      } else if (scenario === 'emergency') {
+        color = '#94a3b8'; // Yielding civilian vehicle
+        status = 'Yielding to EVP';
+        speedKph = 18;
+      } else if (scenario === 'optimized') {
+        color = '#10b981'; // Green: synchronized flow
+        status = 'Webster Green-Wave';
+        speedKph = Math.round(baseSpeedKph * 1.1);
+      }
 
       features.push({
         type: 'Feature',
@@ -260,19 +300,123 @@ export function generateSimulatedVehicles(
         },
         properties: {
           id: `veh-${count + 1}`,
-          type: isAmbulance ? 'ambulance' : isEV ? 'ev' : 'standard',
-          color: isAmbulance ? '#f43f5e' : isEV ? '#10b981' : '#38bdf8',
+          type: isEV ? 'ev' : 'standard',
+          color,
           heading,
-          speedKph: Math.round(road.maxSpeedKph ? road.maxSpeedKph * 0.8 : 35),
+          speedKph,
           roadId: road.id,
           roadName: road.name,
-          label: isAmbulance ? 'AMB-108' : isEV ? 'EV Pool' : 'Vehicle',
+          label: isEV ? 'EV Pool' : 'Commuter',
+          status,
+          scenario,
         },
       });
 
       count++;
     }
   }
+
+  // In EMERGENCY scenario: Add exactly one animated ambulance (AMB-108) along the designated emergency corridor
+  if (scenario === 'emergency') {
+    // Standard Greater Noida emergency corridor: Alpha 1 -> Pari Chowk -> Knowledge Park Medical Hub
+    const corridorCoords: [number, number][] = [
+      [77.518, 28.472],   // Alpha 1
+      [77.5142, 28.4705], // Jagat / Alpha connector
+      [77.5105, 28.4682], // Pari Chowk
+      [77.5055, 28.4645], // KP Arterial
+      [77.4998, 28.461],  // Knowledge Park Medical Hub
+    ];
+
+    const ambProgress = ((tickOffset * 0.08) % 1.0);
+    const ambFraction = ambProgress * (corridorCoords.length - 1);
+    const ambSegIndex = Math.min(corridorCoords.length - 2, Math.floor(ambFraction));
+    const ambSegT = ambFraction - ambSegIndex;
+
+    const ap1 = corridorCoords[ambSegIndex];
+    const ap2 = corridorCoords[ambSegIndex + 1];
+
+    const aLng = ap1[0] + (ap2[0] - ap1[0]) * ambSegT;
+    const aLat = ap1[1] + (ap2[1] - ap1[1]) * ambSegT;
+
+    const adLng = ap2[0] - ap1[0];
+    const adLat = ap2[1] - ap1[1];
+    const ambHeading = (Math.atan2(adLng, adLat) * 180) / Math.PI;
+
+    const ambVehicleId = emergencyCorridor?.vehicleId || 'AMB-108';
+    const ambRoute = emergencyCorridor
+      ? `${emergencyCorridor.origin} ➔ ${emergencyCorridor.destination}`
+      : 'Alpha 1 ➔ Pari Chowk ➔ KP Medical Hub (Priority Corridor)';
+
+    features.push({
+      type: 'Feature',
+      id: 'veh-emergency-ambulance',
+      geometry: {
+        type: 'Point',
+        coordinates: [aLng, aLat],
+      },
+      properties: {
+        id: ambVehicleId,
+        type: 'ambulance',
+        isAmbulance: true,
+        color: '#f43f5e',
+        heading: ambHeading,
+        speedKph: 72,
+        roadId: 'emergency-corridor',
+        roadName: ambRoute,
+        label: `${ambVehicleId} (EVP PRIORITY)`,
+        status: 'ACTIVE GREEN-WAVE PRE-EMPTION',
+        timeSaved: emergencyCorridor ? `${Math.round(emergencyCorridor.timeSavedSeconds / 60)}m ${emergencyCorridor.timeSavedSeconds % 60}s saved` : '3m 41s saved',
+        scenario: 'emergency',
+      },
+    });
+  }
+
+  return {
+    type: 'FeatureCollection',
+    features,
+  };
+}
+
+/**
+ * Generates an animated pulse point along the selected route LineString coordinates
+ */
+export function generateRoutePulsePoint(
+  routeCoordinates: [number, number][],
+  tickOffset: number = 0
+): GeoJSON.FeatureCollection<GeoJSON.Point> {
+  const features: GeoJSON.Feature<GeoJSON.Point>[] = [];
+  if (!Array.isArray(routeCoordinates) || routeCoordinates.length < 2) {
+    return { type: 'FeatureCollection', features };
+  }
+
+  const progress = ((tickOffset * 0.035) % 1.0);
+  const fraction = progress * (routeCoordinates.length - 1);
+  const segIndex = Math.min(routeCoordinates.length - 2, Math.floor(fraction));
+  const segT = fraction - segIndex;
+
+  const p1 = routeCoordinates[segIndex];
+  const p2 = routeCoordinates[segIndex + 1];
+
+  const lng = p1[0] + (p2[0] - p1[0]) * segT;
+  const lat = p1[1] + (p2[1] - p1[1]) * segT;
+
+  const dLng = p2[0] - p1[0];
+  const dLat = p2[1] - p1[1];
+  const heading = (Math.atan2(dLng, dLat) * 180) / Math.PI;
+
+  features.push({
+    type: 'Feature',
+    id: 'selected-route-pulse',
+    geometry: {
+      type: 'Point',
+      coordinates: [lng, lat],
+    },
+    properties: {
+      id: 'route-pulse',
+      heading,
+      color: '#34d399',
+    },
+  });
 
   return {
     type: 'FeatureCollection',

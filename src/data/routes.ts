@@ -197,3 +197,14 @@ export const SIMULATED_ROUTE_PAIRS: RoutePairKey[] = [
     ],
   },
 ];
+
+export {
+  getAllDemoRoutes,
+  getDemoRouteById,
+  findDemoRoutes,
+  getDemoLocations,
+  registerCustomDemoRoute,
+  demoRouteToComparisonResult,
+} from '@/lib/routing/demo-routes-registry';
+export type { DemoRouteDefinition } from '@/lib/routing/demo-routes-registry';
+

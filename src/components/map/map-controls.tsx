@@ -9,6 +9,8 @@ import {
   CircleDot,
   Car,
   Siren,
+  Play,
+  Pause,
 } from 'lucide-react';
 import { MapLayerToggles } from '@/types/map';
 
@@ -18,6 +20,9 @@ interface MapControlsProps {
   onResetBounds: () => void;
   layers: MapLayerToggles;
   onToggleLayer: (key: keyof MapLayerToggles) => void;
+  isSimulating?: boolean;
+  onToggleSimulate?: () => void;
+  onResetSimulation?: () => void;
 }
 
 export function MapControls({
@@ -26,9 +31,40 @@ export function MapControls({
   onResetBounds,
   layers,
   onToggleLayer,
+  isSimulating = true,
+  onToggleSimulate,
+  onResetSimulation,
 }: MapControlsProps) {
   return (
     <div className="flex flex-col gap-2 pointer-events-auto">
+      {/* Simulation Playback & Replay Controls */}
+      {onToggleSimulate && (
+        <div className="bg-white/95 dark:bg-[#0b0f19]/95 backdrop-blur-md border border-slate-200 dark:border-slate-800 rounded-lg p-1 flex items-center justify-center gap-1 shadow-md">
+          <button
+            onClick={onToggleSimulate}
+            title={isSimulating ? 'Pause Simulation' : 'Start Simulation'}
+            aria-label={isSimulating ? 'Pause simulation' : 'Start simulation'}
+            className={`p-1.5 rounded transition-colors cursor-pointer ${
+              isSimulating
+                ? 'text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40'
+                : 'text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40'
+            }`}
+          >
+            {isSimulating ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+          </button>
+          {onResetSimulation && (
+            <button
+              onClick={onResetSimulation}
+              title="Replay / Reset Simulation Timeline"
+              aria-label="Replay simulation"
+              className="p-1.5 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-colors cursor-pointer"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Zoom & Recenter Controls */}
       <div className="bg-white/95 dark:bg-[#0b0f19]/95 backdrop-blur-md border border-slate-200 dark:border-slate-800 rounded-lg p-1 flex flex-col gap-1 shadow-md">
         <button

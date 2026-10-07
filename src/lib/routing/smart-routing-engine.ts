@@ -13,6 +13,11 @@ import { buildRoadGraph } from './road-graph';
 import { snapCoordinateToGraph, SnappingError } from './location-snapper';
 import { computeSmartRoutes } from './astar-router';
 import { SEEDED_MOBILITY_ZONES } from '@/data/mobility-zones-seed';
+import {
+  findDemoRoutes,
+  demoRouteToComparisonResult,
+  DemoRouteDefinition,
+} from './demo-routes-registry';
 
 export interface SmartRouteQueryOptions {
   zoneId?: string;
@@ -39,6 +44,41 @@ export class SmartRoutingEngine implements IRouteProvider {
       objective = 'NIU_OPTIMAL',
       scenario = 'normal',
     } = options;
+
+    // 0. Check for curated demo routes matching origin and destination query strings
+    if (typeof origin === 'string' && typeof destination === 'string') {
+      const demoMatches = findDemoRoutes(origin, destination);
+      if (demoMatches.length > 0) {
+        return demoRouteToComparisonResult(demoMatches[0], scenario, objective);
+      }
+
+      // Check reverse origin/destination direction
+      const reverseMatches = findDemoRoutes(destination, origin);
+      if (reverseMatches.length > 0) {
+        const rev = reverseMatches[0];
+        const reversedRoute: DemoRouteDefinition = {
+          ...rev,
+          id: `${rev.id}-rev`,
+          name: `${rev.destination.name} ➔ ${rev.origin.name}`,
+          origin: rev.destination,
+          destination: rev.origin,
+          geometry: {
+            type: 'LineString',
+            coordinates: [...rev.geometry.coordinates].reverse(),
+          },
+          alternatives: rev.alternatives.map((alt) => ({
+            ...alt,
+            id: `${alt.id}-rev`,
+            routeId: `${alt.routeId}-rev`,
+            geometry: {
+              type: 'LineString',
+              coordinates: [...alt.geometry.coordinates].reverse(),
+            },
+          })),
+        };
+        return demoRouteToComparisonResult(reversedRoute, scenario, objective);
+      }
+    }
 
     // 1. Resolve Origin Coordinate & Name
     let originCoord: Coordinate;

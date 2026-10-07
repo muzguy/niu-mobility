@@ -89,6 +89,28 @@ export const SEEDED_LOCATION_CANDIDATES: LocationSearchResult[] = [
     source: 'seed',
     boundingBox: { minLat: 28.34, minLng: 77.538, maxLat: 28.362, maxLng: 77.563 },
   },
+  {
+    id: 'noida-greater-noida-expressway-north-terminal',
+    name: 'Noida-Greater Noida Expressway North Terminal',
+    displayName: 'Noida-Greater Noida Expressway North Terminal, UP 201310',
+    latitude: 28.475,
+    longitude: 77.502,
+    type: 'terminal',
+    importance: 0.85,
+    source: 'seed',
+    boundingBox: { minLat: 28.47, minLng: 77.498, maxLat: 28.48, maxLng: 77.51 },
+  },
+  {
+    id: 'knowledge-park-outer-sector-junction',
+    name: 'Knowledge Park Outer Sector Junction',
+    displayName: 'Knowledge Park Outer Sector Ring Junction, Greater Noida, UP 201306',
+    latitude: 28.455,
+    longitude: 77.505,
+    type: 'junction',
+    importance: 0.84,
+    source: 'seed',
+    boundingBox: { minLat: 28.45, minLng: 77.50, maxLat: 28.46, maxLng: 77.51 },
+  },
 ];
 
 export const SEEDED_MOBILITY_ZONES: MobilityZone[] = [

@@ -18,19 +18,12 @@ import {
   Sparkles,
   Info,
 } from 'lucide-react';
-
-const CANDIDATE_LOCATIONS = [
-  'Pari Chowk',
-  'Knowledge Park',
-  'Alpha 1',
-  'Alpha 2',
-  'Jagat Farm',
-  'Galgotias University',
-  'Dankaur Junction',
-];
+import { getDemoLocations } from '@/lib/routing/demo-routes-registry';
 
 export function RouteComparison() {
   const { simulationMode, setSimulationMode } = useSimulation();
+
+  const candidateLocations = useMemo(() => getDemoLocations().map((l) => l.name), []);
 
   const [origin, setOrigin] = useState<string>('Pari Chowk');
   const [destination, setDestination] = useState<string>('Knowledge Park');
@@ -41,26 +34,23 @@ export function RouteComparison() {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  const isIdentical = useMemo(() => {
+    const o = origin.trim().toLowerCase();
+    const d = destination.trim().toLowerCase();
+    return o.length > 0 && d.length > 0 && o === d;
+  }, [origin, destination]);
+
+  const effectiveErrorMessage = isIdentical ? 'Origin and destination cannot be identical.' : errorMessage;
+
   // Recalculate routes on input, scenario, or objective change
   useEffect(() => {
     let isMounted = true;
     const trimmedOrigin = origin.trim();
     const trimmedDest = destination.trim();
 
-    if (!trimmedOrigin || !trimmedDest) return;
-    if (trimmedOrigin.toLowerCase() === trimmedDest.toLowerCase()) {
-      queueMicrotask(() => {
-        if (isMounted) setErrorMessage('Origin and destination cannot be identical.');
-      });
+    if (!trimmedOrigin || !trimmedDest || trimmedOrigin.toLowerCase() === trimmedDest.toLowerCase()) {
       return;
     }
-
-    queueMicrotask(() => {
-      if (isMounted) {
-        setIsLoading(true);
-        setErrorMessage(null);
-      }
-    });
 
     apiGetRoutes(trimmedOrigin, trimmedDest, {
       zoneId: 'greater-noida-core',
@@ -198,28 +188,78 @@ export function RouteComparison() {
           </div>
         </div>
 
+        {/* Quick Demo Route Presets */}
+        <div className="mb-4">
+          <label className="block text-[10px] font-mono uppercase text-slate-500 dark:text-slate-400 mb-1.5">
+            Curated Demo Corridors (OSM Road Network):
+          </label>
+          <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-thin">
+            {[
+              { orig: 'Pari Chowk', dest: 'Knowledge Park', label: 'Pari Chowk ➔ Knowledge Park', isEVP: false },
+              { orig: 'Alpha 1', dest: 'Knowledge Park', label: 'Alpha 1 ➔ Knowledge Park', isEVP: false },
+              { orig: 'Alpha 2', dest: 'Jagat Farm', label: 'Alpha 2 ➔ Jagat Farm', isEVP: false },
+              { orig: 'Pari Chowk', dest: 'Jagat Farm', label: 'Pari Chowk ➔ Jagat Farm', isEVP: false },
+              { orig: 'Alpha 1', dest: 'Alpha 2', label: 'Alpha 1 ➔ Alpha 2', isEVP: false },
+              { orig: 'Pari Chowk', dest: 'Galgotias University', label: 'Pari Chowk ➔ Galgotias', isEVP: false },
+              { orig: 'Alpha 1', dest: 'Galgotias University', label: 'Alpha 1 ➔ Galgotias', isEVP: false },
+              { orig: 'Knowledge Park', dest: 'Galgotias University', label: 'KP ➔ Galgotias', isEVP: false },
+              { orig: 'Galgotias University', dest: 'Dankaur Junction', label: 'Galgotias ➔ Dankaur', isEVP: false },
+              { orig: 'Jagat Farm', dest: 'Alpha 1', label: 'Jagat Farm ➔ Alpha 1', isEVP: false },
+              { orig: 'Alpha 1', dest: 'Knowledge Park', label: '🚨 Alpha 1 ➔ KP Medical (EVP)', isEVP: true },
+            ].map((p, idx) => {
+              const isActive = origin.toLowerCase() === p.orig.toLowerCase() && destination.toLowerCase() === p.dest.toLowerCase();
+              return (
+                <button
+                  key={`preset-${idx}`}
+                  onClick={() => {
+                    setOrigin(p.orig);
+                    setDestination(p.dest);
+                    if (p.isEVP) {
+                      setSimulationMode('emergency');
+                    }
+                  }}
+                  className={`px-2.5 py-1.5 rounded-lg border text-[11px] font-medium shrink-0 flex items-center gap-1.5 transition-all cursor-pointer ${
+                    isActive
+                      ? p.isEVP
+                        ? 'bg-rose-50 dark:bg-rose-500/20 border-rose-300 dark:border-rose-500/40 text-rose-700 dark:text-rose-300 font-semibold'
+                        : 'bg-emerald-50 dark:bg-emerald-500/20 border-emerald-300 dark:border-emerald-500/40 text-emerald-800 dark:text-emerald-300 font-semibold'
+                      : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  {p.isEVP ? (
+                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span>
+                  ) : (
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                  )}
+                  <span>{p.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
         {/* Inputs Grid */}
         <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
           {/* Origin */}
           <div className="md:col-span-3">
-            <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1">
+            <label htmlFor="origin-select" className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1">
               Origin Location
             </label>
             <div className="relative">
-              <MapPin className="absolute left-3 top-2.5 w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-              <input
-                type="text"
-                list="origin-locations"
+              <MapPin className="absolute left-3 top-2.5 w-4 h-4 text-emerald-600 dark:text-emerald-400 pointer-events-none z-10" />
+              <select
+                id="origin-select"
+                aria-label="Origin Location"
                 value={origin}
                 onChange={(e) => setOrigin(e.target.value)}
-                placeholder="Enter origin..."
-                className="w-full pl-9 pr-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:border-emerald-500 transition-colors"
-              />
-              <datalist id="origin-locations">
-                {CANDIDATE_LOCATIONS.map((loc) => (
-                  <option key={`orig-${loc}`} value={loc} />
+                className="w-full pl-9 pr-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:border-emerald-500 transition-colors cursor-pointer"
+              >
+                {candidateLocations.map((loc) => (
+                  <option key={`orig-${loc}`} value={loc}>
+                    {loc}
+                  </option>
                 ))}
-              </datalist>
+              </select>
             </div>
           </div>
 
@@ -237,24 +277,24 @@ export function RouteComparison() {
 
           {/* Destination */}
           <div className="md:col-span-3">
-            <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1">
+            <label htmlFor="dest-select" className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1">
               Destination Location
             </label>
             <div className="relative">
-              <MapPin className="absolute left-3 top-2.5 w-4 h-4 text-cyan-600 dark:text-cyan-400" />
-              <input
-                type="text"
-                list="dest-locations"
+              <MapPin className="absolute left-3 top-2.5 w-4 h-4 text-cyan-600 dark:text-cyan-400 pointer-events-none z-10" />
+              <select
+                id="dest-select"
+                aria-label="Destination Location"
                 value={destination}
                 onChange={(e) => setDestination(e.target.value)}
-                placeholder="Enter destination..."
-                className="w-full pl-9 pr-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:border-cyan-500 transition-colors"
-              />
-              <datalist id="dest-locations">
-                {CANDIDATE_LOCATIONS.map((loc) => (
-                  <option key={`dest-${loc}`} value={loc} />
+                className="w-full pl-9 pr-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:border-cyan-500 transition-colors cursor-pointer"
+              >
+                {candidateLocations.map((loc) => (
+                  <option key={`dest-${loc}`} value={loc}>
+                    {loc}
+                  </option>
                 ))}
-              </datalist>
+              </select>
             </div>
           </div>
 
@@ -307,16 +347,16 @@ export function RouteComparison() {
         </div>
 
         {/* Error Notification */}
-        {errorMessage && (
+        {effectiveErrorMessage && (
           <div className="mt-4 p-3 rounded-lg border border-rose-300 dark:border-rose-900/50 bg-rose-50 dark:bg-rose-950/20 text-rose-700 dark:text-rose-400 text-xs flex items-center gap-2">
             <AlertTriangle className="w-4 h-4 shrink-0" />
-            <span>{errorMessage}</span>
+            <span>{effectiveErrorMessage}</span>
           </div>
         )}
       </div>
 
       {/* Recommended Route Hero Banner */}
-      {recommendedRoute && !errorMessage && (
+      {recommendedRoute && !effectiveErrorMessage && (
         <div className="p-4 rounded-xl border border-emerald-300 dark:border-emerald-500/30 bg-emerald-50/60 dark:bg-emerald-950/20 flex flex-col md:flex-row md:items-center justify-between gap-4 text-xs shadow-xs">
           <div className="flex items-start sm:items-center gap-3">
             <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 shrink-0">
@@ -375,7 +415,7 @@ export function RouteComparison() {
           <div className="flex items-center gap-2">
             <RouteIcon className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
             <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-              Real Road Network Route Trajectory (MapLibre / CARTO)
+              Real Road Network Route Trajectory (MapLibre / OpenStreetMap)
             </h3>
           </div>
           <span className="text-[11px] font-mono text-slate-500 dark:text-slate-400">
@@ -391,6 +431,7 @@ export function RouteComparison() {
           originPoint={originPoint}
           destinationPoint={destinationPoint}
           onSelectRoute={setSelectedRouteId}
+          showDemoRoutePicker={false}
         />
       </div>
 

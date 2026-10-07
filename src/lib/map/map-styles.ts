@@ -26,11 +26,27 @@ export function getMapStyle(isDark: boolean): string | StyleSpecification {
     return customStyle;
   }
 
+  // OpenStreetMap detailed raster source specification
+  const osmSource = {
+    type: 'raster' as const,
+    tiles: [
+      'https://a.tile.openstreetmap.org/{z}/{x}/{y}.png',
+      'https://b.tile.openstreetmap.org/{z}/{x}/{y}.png',
+      'https://c.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    ],
+    tileSize: 256,
+    maxzoom: 19,
+    attribution:
+      '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors',
+  };
+
   if (isDark) {
     return {
       version: 8,
-      name: 'NIU Dark Matter Basemap',
+      name: 'NIU OSM Dark Mode Basemap',
       sources: {
+        'osm-tiles': osmSource,
+        // Preserved for backwards compatibility with test harnesses and legacy providers
         'carto-dark': {
           type: 'raster',
           tiles: [
@@ -50,13 +66,16 @@ export function getMapStyle(isDark: boolean): string | StyleSpecification {
           },
         },
         {
-          id: 'carto-dark-tiles',
+          id: 'osm-tiles',
           type: 'raster',
-          source: 'carto-dark',
+          source: 'osm-tiles',
           minzoom: 0,
           maxzoom: 19,
           paint: {
-            'raster-opacity': 0.95,
+            'raster-opacity': 0.85,
+            'raster-brightness-max': 0.68,
+            'raster-saturation': -0.65,
+            'raster-contrast': 0.22,
           },
         },
       ],
@@ -65,8 +84,10 @@ export function getMapStyle(isDark: boolean): string | StyleSpecification {
 
   return {
     version: 8,
-    name: 'NIU Positron Light Basemap',
+    name: 'NIU OSM Standard Basemap',
     sources: {
+      'osm-tiles': osmSource,
+      // Preserved for backwards compatibility with test harnesses and legacy providers
       'carto-light': {
         type: 'raster',
         tiles: [
@@ -86,9 +107,9 @@ export function getMapStyle(isDark: boolean): string | StyleSpecification {
         },
       },
       {
-        id: 'carto-light-tiles',
+        id: 'osm-tiles',
         type: 'raster',
-        source: 'carto-light',
+        source: 'osm-tiles',
         minzoom: 0,
         maxzoom: 19,
         paint: {
