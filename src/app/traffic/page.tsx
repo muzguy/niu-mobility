@@ -12,6 +12,7 @@ import { LocationSelector } from '@/components/geospatial/location-selector';
 import { apiSetSimulationScenario, apiGetTrafficState } from '@/lib/api-client';
 import { Intersection } from '@/types/traffic';
 import { MobilityMap } from '@/components/map/mobility-map';
+import { PredictiveTrafficSection } from '@/components/traffic/predictive-traffic-section';
 
 export default function TrafficPage() {
   const {
@@ -24,10 +25,12 @@ export default function TrafficPage() {
   } = useSimulation();
 
   const [activeZoneId, setActiveZoneId] = React.useState('greater-noida-core');
+  const [mapTrafficHorizon, setMapTrafficHorizon] = React.useState<'CURRENT' | '15MIN' | '30MIN'>('CURRENT');
   const [zoneTelemetry, setZoneTelemetry] = React.useState<{
     intersections: Intersection[];
     metrics: typeof metrics;
   } | null>(null);
+
 
   React.useEffect(() => {
     let isMounted = true;
@@ -193,9 +196,20 @@ export default function TrafficPage() {
             setSelectedNodeId(id);
             selectIntersection(id);
           }}
+          trafficHorizon={mapTrafficHorizon}
+          onHorizonChange={setMapTrafficHorizon}
           heightClass="h-[520px] sm:h-[620px]"
         />
       </div>
+
+      {/* PREDICTIVE TRAFFIC INTELLIGENCE SECTION (NOW, +5M, +15M, +30M, Trajectory Chart & Dynamic Recommendations) */}
+      <PredictiveTrafficSection
+        activeZoneId={activeZoneId}
+        simulationMode={simulationMode}
+        activeMapHorizon={mapTrafficHorizon}
+        onSelectMapHorizon={setMapTrafficHorizon}
+      />
+
 
       {/* TOP STATS: Traffic Load, Average Speed, Queue Length, Waiting Time */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -307,13 +321,14 @@ export default function TrafficPage() {
               Monitored Intersections Network Telemetry
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              Live status across all {activeIntersections.length} corridor sensor nodes
+              Simulated telemetry across all {activeIntersections.length} monitored junction nodes
             </p>
           </div>
           <span className="text-[10px] font-mono text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-900 px-2 py-1 rounded border border-slate-200 dark:border-slate-800 self-start sm:self-auto">
-            REAL-TIME TELEMETRY MATRIX
+            SIMULATED TELEMETRY MATRIX
           </span>
         </div>
+
 
         <div className="overflow-x-auto">
           <table className="w-full text-xs text-left">

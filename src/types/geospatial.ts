@@ -16,7 +16,9 @@ export type DataProvenanceSource =
   | 'government'
   | 'simulation'
   | 'estimated'
+  | 'modelled'
   | 'seed';
+
 
 export interface DataProvenance {
   source: DataProvenanceSource;

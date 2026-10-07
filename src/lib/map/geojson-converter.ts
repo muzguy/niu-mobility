@@ -10,7 +10,8 @@ import { classifyRoadTraffic, getTrafficStateColor } from './traffic-classifier'
 export function roadsToGeoJSON(
   roads: GeoRoadSegment[],
   scenario: SimulationTrafficMode = 'normal',
-  hourOfDay?: number
+  hourOfDay?: number,
+  minutesAhead: number = 0
 ): GeoJSON.FeatureCollection<GeoJSON.LineString> {
   if (!Array.isArray(roads)) {
     return { type: 'FeatureCollection', features: [] };
@@ -46,7 +47,8 @@ export function roadsToGeoJSON(
       continue;
     }
 
-    const traffic = classifyRoadTraffic(road, scenario, hourOfDay);
+    const traffic = classifyRoadTraffic(road, scenario, hourOfDay, minutesAhead);
+
 
     features.push({
       type: 'Feature',

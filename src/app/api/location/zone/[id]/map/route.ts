@@ -21,6 +21,17 @@ export async function GET(
     const scenario = (searchParams.get('scenario') as SimulationTrafficMode) || 'normal';
     const hourParam = searchParams.get('hour');
     const hour = hourParam !== null ? parseInt(hourParam, 10) : undefined;
+    const minutesAheadParam = searchParams.get('minutesAhead');
+    const horizonParam = searchParams.get('horizon');
+
+    let minutesAhead = 0;
+    if (minutesAheadParam !== null) {
+      minutesAhead = parseInt(minutesAheadParam, 10) || 0;
+    } else if (horizonParam === '15m' || horizonParam === 'plus_15m') {
+      minutesAhead = 15;
+    } else if (horizonParam === '30m' || horizonParam === 'plus_30m') {
+      minutesAhead = 30;
+    }
 
     const zone = await locationService.getMobilityZone(id);
     if (!zone) {
@@ -33,7 +44,8 @@ export async function GET(
       hour: isNaN(hour as number) ? undefined : hour,
     });
 
-    const roadNetworkGeoJSON = roadsToGeoJSON(zone.roads, scenario, hour);
+    const roadNetworkGeoJSON = roadsToGeoJSON(zone.roads, scenario, hour, minutesAhead);
+
     const intersectionsGeoJSON = intersectionsToGeoJSON(
       zone.intersections,
       telemetry?.intersections

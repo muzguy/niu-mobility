@@ -42,6 +42,8 @@ import {
 } from 'lucide-react';
 import { SimulationTrafficMode } from '@/lib/simulation/simulation-engine';
 
+export type MapTrafficHorizon = 'CURRENT' | '15MIN' | '30MIN';
+
 interface MobilityMapProps {
   activeZoneId?: string;
   onSelectIntersection?: (id: string) => void;
@@ -52,6 +54,8 @@ interface MobilityMapProps {
   originPoint?: { coordinate: { latitude: number; longitude: number }; name?: string } | null;
   destinationPoint?: { coordinate: { latitude: number; longitude: number }; name?: string } | null;
   showDemoRoutePicker?: boolean;
+  trafficHorizon?: MapTrafficHorizon;
+  onHorizonChange?: (horizon: MapTrafficHorizon) => void;
 }
 
 export function MobilityMap({
@@ -64,7 +68,10 @@ export function MobilityMap({
   originPoint = null,
   destinationPoint = null,
   showDemoRoutePicker = true,
+  trafficHorizon,
+  onHorizonChange,
 }: MobilityMapProps) {
+
   const { simulationMode, selectIntersection, emergencyCorridor } = useSimulation();
   const { isDark } = useTheme();
 
@@ -164,13 +171,24 @@ export function MobilityMap({
     showVehicles: true,
   });
 
-  // Load payload asynchronously when zone or simulation mode changes
+  const [internalHorizon, setInternalHorizon] = useState<MapTrafficHorizon>('CURRENT');
+  const activeHorizon = trafficHorizon ?? internalHorizon;
+  const minutesAhead = activeHorizon === '15MIN' ? 15 : activeHorizon === '30MIN' ? 30 : 0;
+
+  const handleSelectHorizon = (h: MapTrafficHorizon) => {
+    setInternalHorizon(h);
+    if (onHorizonChange) {
+      onHorizonChange(h);
+    }
+  };
+
+  // Load payload asynchronously when zone, simulation mode, or horizon changes
   useEffect(() => {
     let isMounted = true;
 
     async function loadZoneData() {
       try {
-        const res = await apiGetZoneMapPayload(activeZoneId, simulationMode);
+        const res = await apiGetZoneMapPayload(activeZoneId, simulationMode, minutesAhead);
         if (isMounted && res.success && res.data) {
           setMapPayload(res.data);
           setLoadingPayload(false);
@@ -188,7 +206,7 @@ export function MobilityMap({
         center: [seed.center.longitude, seed.center.latitude],
         radiusMeters: seed.radiusMeters,
         boundingBox: seed.boundingBox,
-        roadNetwork: roadsToGeoJSON(seed.roads, simulationMode as SimulationTrafficMode),
+        roadNetwork: roadsToGeoJSON(seed.roads, simulationMode as SimulationTrafficMode, undefined, minutesAhead),
         intersections: intersectionsToGeoJSON(seed.intersections),
         dataAvailability: seed.dataAvailability,
         provenance: seed.provenance,
@@ -203,7 +221,8 @@ export function MobilityMap({
     return () => {
       isMounted = false;
     };
-  }, [activeZoneId, simulationMode]);
+  }, [activeZoneId, simulationMode, minutesAhead]);
+
 
   // Initialize MapLibre GL Instance
   useEffect(() => {
@@ -1085,6 +1104,46 @@ export function MobilityMap({
           lastSimulatedAt={mapPayload?.lastSimulatedAt}
         />
       </div>
+
+      {/* Top Center: Predictive Traffic Horizon Switcher */}
+      <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 pointer-events-auto">
+        <div className="bg-white/95 dark:bg-[#0b0f19]/95 backdrop-blur-md border border-slate-200 dark:border-slate-800 rounded-lg p-1 flex items-center gap-1 shadow-md font-mono text-[11px]">
+          <span className="text-[10px] text-slate-400 font-semibold px-1.5 hidden md:inline">TRAFFIC LAYER:</span>
+          <button
+            onClick={() => handleSelectHorizon('CURRENT')}
+            className={`px-2.5 py-1 rounded transition-all cursor-pointer font-semibold ${
+              activeHorizon === 'CURRENT'
+                ? 'bg-emerald-500 text-white shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
+            }`}
+          >
+            CURRENT
+          </button>
+          <button
+            onClick={() => handleSelectHorizon('15MIN')}
+            className={`px-2.5 py-1 rounded transition-all cursor-pointer font-semibold flex items-center gap-1 ${
+              activeHorizon === '15MIN'
+                ? 'bg-cyan-600 text-white shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
+            }`}
+          >
+            <span>+15 MIN</span>
+            <span className="text-[9px] opacity-80 font-normal hidden sm:inline">MODELLED</span>
+          </button>
+          <button
+            onClick={() => handleSelectHorizon('30MIN')}
+            className={`px-2.5 py-1 rounded transition-all cursor-pointer font-semibold flex items-center gap-1 ${
+              activeHorizon === '30MIN'
+                ? 'bg-amber-600 text-white shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
+            }`}
+          >
+            <span>+30 MIN</span>
+            <span className="text-[9px] opacity-80 font-normal hidden sm:inline">MODELLED</span>
+          </button>
+        </div>
+      </div>
+
 
       {/* Top Right: Map Controls (Playback, Zoom, Recenter, Layer Toggles) */}
       <div className="absolute top-3 right-3 z-10">

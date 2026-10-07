@@ -173,6 +173,41 @@ export class TrafficService {
       intersections: nextState.intersections,
     };
   }
+
+  /**
+   * Forecasts multi-horizon traffic congestion and synthesizes mobility recommendations.
+   * Deterministic model using road capacity, BPR curves, and diurnal demand curves.
+   */
+  public async getTrafficPrediction(options: {
+    zoneId?: string;
+    horizon?: string;
+    scenario?: SimulationTrafficMode;
+    hour?: number;
+  } = {}): Promise<import('@/types/prediction').TrafficPredictionResult> {
+    const simState = getBackendSimulationState();
+    const effectiveScenario = options.scenario || simState.simulationMode;
+    const targetZoneId = options.zoneId || 'greater-noida-core';
+
+    const { locationService } = await import('../location/location-service');
+    const zone = await locationService.getMobilityZone(targetZoneId);
+
+    if (!zone) {
+      const { SEEDED_MOBILITY_ZONES } = await import('@/data/mobility-zones-seed');
+      const fallbackZone = SEEDED_MOBILITY_ZONES[0];
+      const { trafficPredictionEngine } = await import('@/lib/traffic/traffic-prediction-engine');
+      return trafficPredictionEngine.predictZoneTraffic(fallbackZone, {
+        hourOfDay: options.hour,
+        scenario: effectiveScenario,
+      });
+    }
+
+    const { trafficPredictionEngine } = await import('@/lib/traffic/traffic-prediction-engine');
+    return trafficPredictionEngine.predictZoneTraffic(zone, {
+      hourOfDay: options.hour,
+      scenario: effectiveScenario,
+    });
+  }
 }
 
 export const trafficService = new TrafficService();
+

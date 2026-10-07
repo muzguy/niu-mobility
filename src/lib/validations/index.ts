@@ -126,3 +126,16 @@ export const getZoneQuerySchema = z.object({
   name: z.string().max(100).optional(),
 });
 
+export const trafficPredictionSchema = z.object({
+  zoneId: z.string().max(100).optional().default('greater-noida-core'),
+  horizon: z
+    .enum(['now', 'plus_5m', 'plus_15m', 'plus_30m', 'all'])
+    .optional()
+    .default('all'),
+  scenario: z
+    .enum(['normal', 'rush_hour', 'emergency', 'optimized'])
+    .optional(),
+  hour: z.coerce.number().int().min(0).max(23).optional(),
+});
+
+

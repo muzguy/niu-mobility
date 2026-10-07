@@ -29,9 +29,11 @@ const FREE_FLOW_SPEED_KMH: Record<string, number> = {
 export function classifyRoadTraffic(
   road: GeoRoadSegment,
   scenario: SimulationTrafficMode = 'normal',
-  hourOfDay?: number
+  hourOfDay?: number,
+  minutesAhead: number = 0
 ): MapRoadTraffic {
-  const currentHour = hourOfDay ?? new Date().getHours();
+  const baseHour = hourOfDay ?? new Date().getHours();
+  const effectiveHour = (baseHour + (minutesAhead || 0) / 60) % 24;
   const roadType = (road.highwayType || 'secondary').toLowerCase();
   const lanes = Math.max(1, road.lanes || (roadType === 'motorway' || roadType === 'trunk' ? 3 : 2));
 
@@ -39,25 +41,30 @@ export function classifyRoadTraffic(
   const capacityVph = baseCapacity * lanes;
   const freeFlowSpeed = road.maxSpeedKph || FREE_FLOW_SPEED_KMH[roadType] || 45;
 
-  // Diurnal demand multiplier (peaks at 08:00-09:30 and 17:00-18:30)
+  // Diurnal demand multiplier (peaks at 08:00-10:00 and 16:30-19:30)
   let hourMultiplier = 0.55;
-  if (currentHour >= 8 && currentHour <= 10) hourMultiplier = 1.35;
-  else if (currentHour >= 12 && currentHour <= 14) hourMultiplier = 0.95;
-  else if (currentHour >= 16 && currentHour <= 19) hourMultiplier = 1.45;
-  else if (currentHour >= 21 || currentHour <= 5) hourMultiplier = 0.25;
+  if (effectiveHour >= 8 && effectiveHour <= 10.5) hourMultiplier = 1.35;
+  else if (effectiveHour >= 12 && effectiveHour <= 14) hourMultiplier = 0.95;
+  else if (effectiveHour >= 16 && effectiveHour <= 19.5) hourMultiplier = 1.45;
+  else if (effectiveHour >= 21 || effectiveHour <= 5) hourMultiplier = 0.25;
   else hourMultiplier = 0.8;
 
   // Scenario multipliers
   let scenarioMultiplier = 1.0;
-  if (scenario === 'rush_hour') scenarioMultiplier = 1.55;
-  else if (scenario === 'emergency') scenarioMultiplier = 1.25;
-  else if (scenario === 'optimized') scenarioMultiplier = 0.78; // Webster green-split delay reduction
+  if (scenario === 'rush_hour') {
+    scenarioMultiplier = 1.55 + ((minutesAhead || 0) / 30) * 0.12;
+  } else if (scenario === 'emergency') {
+    scenarioMultiplier = 1.25;
+  } else if (scenario === 'optimized') {
+    scenarioMultiplier = Math.max(0.68, 0.78 - ((minutesAhead || 0) / 30) * 0.08);
+  }
 
   // Deterministic pseudo-random seed from road ID to preserve unique per-road variance
   let hash = 0;
   for (let i = 0; i < road.id.length; i++) {
     hash = (hash * 31 + road.id.charCodeAt(i)) % 1000;
   }
+
   const variance = 0.85 + (hash % 30) / 100; // 0.85 to 1.15
 
   // Compute Volume V and V/C ratio

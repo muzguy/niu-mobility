@@ -230,11 +230,37 @@ export async function apiGetZoneTraffic(zoneId: string, options?: { hour?: numbe
 /**
  * Get Map-ready GeoJSON and telemetry payload for a Mobility Zone
  */
-export async function apiGetZoneMapPayload(zoneId: string, scenario?: string) {
-  const query = scenario ? `?scenario=${encodeURIComponent(scenario)}` : '';
+export async function apiGetZoneMapPayload(zoneId: string, scenario?: string, minutesAhead?: number) {
+  const params = new URLSearchParams();
+  if (scenario) params.set('scenario', scenario);
+  if (minutesAhead !== undefined && minutesAhead > 0) params.set('minutesAhead', minutesAhead.toString());
+  const query = params.toString() ? `?${params.toString()}` : '';
   return fetchApi<import('@/types/map').ZoneMapPayload>(
     `/api/location/zone/${encodeURIComponent(zoneId)}/map${query}`
   );
 }
+
+
+/**
+ * Get deterministic multi-horizon traffic predictions and recommendations
+ */
+export async function apiGetTrafficPrediction(params?: {
+  zoneId?: string;
+  horizon?: string;
+  scenario?: string;
+  hour?: number;
+}) {
+  const query = new URLSearchParams();
+  if (params?.zoneId) query.set('zoneId', params.zoneId);
+  if (params?.horizon) query.set('horizon', params.horizon);
+  if (params?.scenario) query.set('scenario', params.scenario);
+  if (params?.hour !== undefined) query.set('hour', params.hour.toString());
+
+  const qStr = query.toString() ? `?${query.toString()}` : '';
+  return fetchApi<import('@/types/prediction').TrafficPredictionResult>(
+    `/api/traffic/prediction${qStr}`
+  );
+}
+
 
 
