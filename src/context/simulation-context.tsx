@@ -6,17 +6,18 @@ import {
   SimulationState,
   SimulationTrafficMode,
   setSimulationTrafficMode,
-  toggleEmergencySimulation,
-  toggleRushHourState,
 } from '@/lib/simulation/simulation-engine';
 import { Direction, Intersection, CongestionLevel } from '@/types/traffic';
 import { CityMobilityMetrics, SimulationEvent } from '@/types/mobility';
 import { EmergencyCorridor } from '@/types/traffic';
 import { aggregateCityMetrics } from '@/lib/traffic/traffic-engine';
 import { apiTriggerEmergency, apiSetSimulationScenario } from '@/lib/api-client';
+import { calculateMobilityState, UnifiedMobilityState } from '@/lib/simulation/unified-simulation-state';
+import { SimulatedIncident } from '@/types/incident';
 
 interface SimulationContextValue {
   state: SimulationState;
+  mobilityState: UnifiedMobilityState;
   intersections: Intersection[];
   metrics: CityMobilityMetrics;
   events: SimulationEvent[];
@@ -24,6 +25,8 @@ interface SimulationContextValue {
   selectedIntersection: Intersection | null;
   isRushHour: boolean;
   simulationMode: SimulationTrafficMode;
+  activeIncident: SimulatedIncident | null;
+  setIncident: (incident: SimulatedIncident | null) => void;
   selectIntersection: (id: string | null) => void;
   toggleRushHour: () => void;
   triggerEmergency: () => void;
@@ -35,28 +38,46 @@ const SimulationContext = createContext<SimulationContextValue | null>(null);
 
 export function SimulationProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<SimulationState>(createInitialSimulationState());
+  const [activeIncident, setActiveIncident] = useState<SimulatedIncident | null>(null);
+
+  const mobilityState = useMemo<UnifiedMobilityState>(() => {
+    return calculateMobilityState({
+      scenario: state.simulationMode,
+      incident: activeIncident,
+    });
+  }, [state.simulationMode, activeIncident]);
+
+  const setIncident = useCallback((incident: SimulatedIncident | null) => {
+    setActiveIncident(incident);
+    setState((prev) => setSimulationTrafficMode(prev, prev.simulationMode, incident));
+  }, []);
 
   const selectIntersection = useCallback((id: string | null) => {
     setState((prev) => ({ ...prev, selectedIntersectionId: id }));
   }, []);
 
   const toggleRushHour = useCallback(() => {
-    setState((prev) => toggleRushHourState(prev));
-  }, []);
+    setState((prev) => {
+      const nextMode = prev.simulationMode === 'rush_hour' ? 'normal' : 'rush_hour';
+      apiSetSimulationScenario(nextMode).catch(() => {});
+      return setSimulationTrafficMode(prev, nextMode, activeIncident);
+    });
+  }, [activeIncident]);
 
   const triggerEmergency = useCallback(() => {
     setState((prev) => {
-      const next = toggleEmergencySimulation(prev);
-      const action = next.emergencyCorridor.active ? 'activate' : 'cancel';
+      const nextMode = prev.simulationMode === 'emergency' ? 'normal' : 'emergency';
+      const action = nextMode === 'emergency' ? 'activate' : 'cancel';
       apiTriggerEmergency(action).catch(() => {});
-      return next;
+      apiSetSimulationScenario(nextMode).catch(() => {});
+      return setSimulationTrafficMode(prev, nextMode, activeIncident);
     });
-  }, []);
+  }, [activeIncident]);
 
   const setSimulationMode = useCallback((mode: SimulationTrafficMode) => {
-    setState((prev) => setSimulationTrafficMode(prev, mode));
+    setState((prev) => setSimulationTrafficMode(prev, mode, activeIncident));
     apiSetSimulationScenario(mode).catch(() => {});
-  }, []);
+  }, [activeIncident]);
 
   const applySignalOptimization = useCallback(
     (intersectionId: string, newTiming: Record<Direction, number>) => {
@@ -116,6 +137,7 @@ export function SimulationProvider({ children }: { children: React.ReactNode }) 
   const value = useMemo(
     () => ({
       state,
+      mobilityState,
       intersections: state.intersections,
       metrics: state.metrics,
       events: state.events,
@@ -123,6 +145,8 @@ export function SimulationProvider({ children }: { children: React.ReactNode }) 
       selectedIntersection,
       isRushHour: state.isRushHour,
       simulationMode: state.simulationMode,
+      activeIncident,
+      setIncident,
       selectIntersection,
       toggleRushHour,
       triggerEmergency,
@@ -131,6 +155,9 @@ export function SimulationProvider({ children }: { children: React.ReactNode }) 
     }),
     [
       state,
+      mobilityState,
+      activeIncident,
+      setIncident,
       selectedIntersection,
       selectIntersection,
       toggleRushHour,

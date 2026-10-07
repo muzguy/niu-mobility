@@ -33,9 +33,11 @@ const graphCache = new Map<string, RoadGraph>();
  */
 export function buildRoadGraph(
   zone: MobilityZone,
-  scenario: SimulationTrafficMode = 'normal'
+  scenario: SimulationTrafficMode = 'normal',
+  incident?: import('@/types/incident').SimulatedIncident | null
 ): RoadGraph {
-  const cacheKey = `${zone.id}:${scenario}:${zone.roads.length}:${zone.intersections.length}`;
+  const incidentKey = incident ? `${incident.id}:${incident.severity}` : 'none';
+  const cacheKey = `${zone.id}:${scenario}:${incidentKey}:${zone.roads.length}:${zone.intersections.length}`;
   const cached = graphCache.get(cacheKey);
   if (cached) {
     return cached;
@@ -163,7 +165,19 @@ export function buildRoadGraph(
     const highwayType = road.highwayType || 'primary';
     const lanes = road.lanes || 2;
     const baseCapacity = (BASE_CAPACITY_PER_LANE[highwayType] || 1200) * lanes;
-    const freeFlowSpeed = road.maxSpeedKph || FREE_FLOW_SPEED_KMH[highwayType] || 50;
+    const freeFlowSpeed = road.maxSpeedKph || FREE_FLOW_SPEED_KMH[highwayType] || 45;
+    const targetIncident = incident ? zone.intersections.find((i) => i.id === incident.intersectionId) : null;
+    const isIncidentConnected = Boolean(
+      targetIncident && targetIncident.connectedRoadIds.includes(road.id)
+    );
+    let effectiveCapacity = baseCapacity;
+    let effectiveFreeFlow = freeFlowSpeed;
+    if (isIncidentConnected && incident) {
+      const capDrop = incident.severity === 'major' ? 0.28 : incident.severity === 'moderate' ? 0.50 : 0.70;
+      const speedDrop = incident.severity === 'major' ? 0.45 : incident.severity === 'moderate' ? 0.65 : 0.82;
+      effectiveCapacity *= capDrop;
+      effectiveFreeFlow *= speedDrop;
+    }
 
     // Deterministic seed variance based on road index and character codes
     const seedOffset = ((roadIdx * 19 + road.id.length * 7) % 25) / 100; // 0.00 - 0.24
@@ -171,12 +185,12 @@ export function buildRoadGraph(
 
     // Volume to capacity calculation (BPR curve)
     const effectiveDemand = baseCapacity * 0.45 * scenarioMultiplier * seedVariance;
-    const vcRatio = Math.min(1.35, effectiveDemand / baseCapacity);
+    const vcRatio = Math.min(1.5, effectiveDemand / Math.max(1, effectiveCapacity));
 
     // Speed calculation from BPR model: S = S0 / (1 + 0.25 * (V/C)^3.5)
     const currentSpeedKph = Math.max(
-      10,
-      Math.round(freeFlowSpeed / (1 + 0.25 * Math.pow(vcRatio, 3.5)))
+      8,
+      Math.round(effectiveFreeFlow / (1 + 0.25 * Math.pow(vcRatio, 3.5)))
     );
 
     let trafficState: 'low' | 'moderate' | 'severe' = 'low';

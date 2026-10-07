@@ -1,11 +1,42 @@
 'use client';
 
 import React from 'react';
+import { useSimulation } from '@/context/simulation-context';
 import { RouteComparison } from '@/components/routes/route-comparison';
 import { MetricCard } from '@/components/dashboard/metric-card';
 import { Leaf, Clock, Gauge } from 'lucide-react';
 
 export default function RoutesPage() {
+  const { mobilityState, simulationMode } = useSimulation();
+
+  // Deterministically derived profile durations from active simulation travel time
+  const fastestDuration = Math.max(12, Math.round(mobilityState.travelTimeMinutes * 0.92));
+  const balancedDuration = Math.max(14, Math.round(mobilityState.travelTimeMinutes * 1.05));
+  const greenestDuration = Math.max(16, Math.round(mobilityState.travelTimeMinutes * 1.14));
+
+  const fastestChange =
+    simulationMode === 'rush_hour'
+      ? 'High Arterial Congestion'
+      : simulationMode === 'optimized'
+      ? 'Signal Green Waves Active'
+      : simulationMode === 'emergency'
+      ? 'Corridor Pre-empted'
+      : 'Nominal Radial Flow';
+
+  const balancedChange =
+    simulationMode === 'rush_hour'
+      ? 'Optimal Bypass Recommended'
+      : simulationMode === 'optimized'
+      ? 'Synchronized Arterials'
+      : 'Steady Flow / Optimal';
+
+  const greenestChange =
+    simulationMode === 'optimized'
+      ? '-46% Lower Emissions'
+      : simulationMode === 'rush_hour'
+      ? `-${Math.round(mobilityState.co2SavedTons * 10 + 22)}% Idle CO2 Saved`
+      : '-38% Lower Emissions';
+
   return (
     <div className="space-y-6">
       {/* Title Header */}
@@ -25,7 +56,7 @@ export default function RoutesPage() {
         </div>
 
         <div className="text-xs font-mono text-slate-700 dark:text-slate-400 bg-slate-100 dark:bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 self-start sm:self-auto">
-          Objectives: <span className="text-emerald-600 dark:text-emerald-400 font-bold">Optimal · Fastest · Greenest · Shortest</span>
+          Scenario: <span className="text-emerald-600 dark:text-emerald-400 font-bold uppercase">{simulationMode.replace('_', ' ')}</span>
         </div>
       </div>
 
@@ -33,10 +64,10 @@ export default function RoutesPage() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <MetricCard
           label="Fastest Profile"
-          value="28"
+          value={fastestDuration}
           unit="min"
-          change="High Arterial Congestion"
-          changeType="negative"
+          change={fastestChange}
+          changeType={simulationMode === 'rush_hour' ? 'negative' : 'positive'}
           icon={Clock}
           accentColor="rose"
           description="Direct radial spine"
@@ -44,9 +75,9 @@ export default function RoutesPage() {
 
         <MetricCard
           label="Balanced Profile"
-          value="30"
+          value={balancedDuration}
           unit="min"
-          change="Medium Flow / Optimal"
+          change={balancedChange}
           changeType="neutral"
           icon={Gauge}
           accentColor="cyan"
@@ -55,9 +86,9 @@ export default function RoutesPage() {
 
         <MetricCard
           label="Greenest Profile"
-          value="32"
+          value={greenestDuration}
           unit="min"
-          change="-43% Lower Emissions"
+          change={greenestChange}
           changeType="positive"
           icon={Leaf}
           accentColor="green"

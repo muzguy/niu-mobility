@@ -24,11 +24,13 @@ export default function TrafficPage() {
     selectIntersection,
     simulationMode,
     setSimulationMode,
+    setIncident,
+    activeIncident,
   } = useSimulation();
 
   const [activeZoneId, setActiveZoneId] = React.useState('greater-noida-core');
   const [mapTrafficHorizon, setMapTrafficHorizon] = React.useState<'CURRENT' | '15MIN' | '30MIN'>('CURRENT');
-  const [simulatedIncident, setSimulatedIncident] = React.useState<SimulatedIncident | null>(null);
+  const [simulatedIncident, setSimulatedIncident] = React.useState<SimulatedIncident | null>(activeIncident);
   const [zoneTelemetry, setZoneTelemetry] = React.useState<{
     intersections: Intersection[];
     metrics: typeof metrics;
@@ -211,7 +213,10 @@ export default function TrafficPage() {
         activeZoneId={activeZoneId}
         intersections={activeIntersections}
         simulationMode={simulationMode}
-        onIncidentChange={setSimulatedIncident}
+        onIncidentChange={(inc) => {
+          setSimulatedIncident(inc);
+          setIncident(inc);
+        }}
       />
 
       {/* PREDICTIVE TRAFFIC INTELLIGENCE SECTION (NOW, +5M, +15M, +30M, Trajectory Chart & Dynamic Recommendations) */}

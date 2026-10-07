@@ -13,20 +13,24 @@ import {
 } from 'recharts';
 
 import { useTheme } from '@/context/theme-context';
-
-const WEEKLY_IMPACT_DATA = [
-  { day: 'Mon', carpoolKg: 380, signalOptKg: 240, ecoRouteKg: 190, totalSavedKg: 810 },
-  { day: 'Tue', carpoolKg: 420, signalOptKg: 260, ecoRouteKg: 210, totalSavedKg: 890 },
-  { day: 'Wed', carpoolKg: 460, signalOptKg: 290, ecoRouteKg: 230, totalSavedKg: 980 },
-  { day: 'Thu', carpoolKg: 490, signalOptKg: 310, ecoRouteKg: 250, totalSavedKg: 1050 },
-  { day: 'Fri', carpoolKg: 540, signalOptKg: 340, ecoRouteKg: 290, totalSavedKg: 1170 },
-  { day: 'Sat', carpoolKg: 310, signalOptKg: 180, ecoRouteKg: 150, totalSavedKg: 640 },
-  { day: 'Sun', carpoolKg: 280, signalOptKg: 160, ecoRouteKg: 130, totalSavedKg: 570 },
-];
+import { useSimulation } from '@/context/simulation-context';
 
 export function EmissionsChart() {
   const { theme } = useTheme();
+  const { simulationMode } = useSimulation();
   const isDark = theme === 'dark';
+
+  const factor = simulationMode === 'rush_hour' ? 1.25 : simulationMode === 'optimized' ? 1.40 : simulationMode === 'emergency' ? 1.10 : 1.0;
+
+  const weeklyData = [
+    { day: 'Mon', carpoolKg: Math.round(380 * factor), signalOptKg: Math.round(240 * factor), ecoRouteKg: Math.round(190 * factor), totalSavedKg: Math.round(810 * factor) },
+    { day: 'Tue', carpoolKg: Math.round(420 * factor), signalOptKg: Math.round(260 * factor), ecoRouteKg: Math.round(210 * factor), totalSavedKg: Math.round(890 * factor) },
+    { day: 'Wed', carpoolKg: Math.round(460 * factor), signalOptKg: Math.round(290 * factor), ecoRouteKg: Math.round(230 * factor), totalSavedKg: Math.round(980 * factor) },
+    { day: 'Thu', carpoolKg: Math.round(490 * factor), signalOptKg: Math.round(310 * factor), ecoRouteKg: Math.round(250 * factor), totalSavedKg: Math.round(1050 * factor) },
+    { day: 'Fri', carpoolKg: Math.round(540 * factor), signalOptKg: Math.round(340 * factor), ecoRouteKg: Math.round(290 * factor), totalSavedKg: Math.round(1170 * factor) },
+    { day: 'Sat', carpoolKg: Math.round(310 * factor), signalOptKg: Math.round(180 * factor), ecoRouteKg: Math.round(150 * factor), totalSavedKg: Math.round(640 * factor) },
+    { day: 'Sun', carpoolKg: Math.round(280 * factor), signalOptKg: Math.round(160 * factor), ecoRouteKg: Math.round(130 * factor), totalSavedKg: Math.round(570 * factor) },
+  ];
 
   return (
     <div className="w-full h-full">
@@ -44,7 +48,7 @@ export function EmissionsChart() {
 
       <div style={{ width: '100%', height: 300 }}>
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={WEEKLY_IMPACT_DATA} margin={{ top: 10, right: 10, left: -15, bottom: 0 }}>
+          <BarChart data={weeklyData} margin={{ top: 10, right: 10, left: -15, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#1e293b' : '#e2e8f0'} opacity={0.8} />
             <XAxis dataKey="day" stroke="#64748b" fontSize={11} tickLine={false} axisLine={{ stroke: isDark ? '#1e293b' : '#cbd5e1' }} />
             <YAxis stroke="#64748b" fontSize={11} tickLine={false} axisLine={{ stroke: isDark ? '#1e293b' : '#cbd5e1' }} />

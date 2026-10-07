@@ -1301,15 +1301,207 @@ export function getDemoLocations(): Array<{ id: string; name: string; coordinate
  * Adapts a DemoRouteDefinition into a full SmartRouteComparisonResult
  * for consumption by routing UI components.
  */
+/**
+ * Adapts a DemoRouteDefinition into a full SmartRouteComparisonResult
+ * for consumption by routing UI components.
+ * Deterministically applies scenario and incident modulations.
+ */
 export function demoRouteToComparisonResult(
   route: DemoRouteDefinition,
   scenario: SimulationTrafficMode = 'normal',
-  objective: import('@/types/routing').RoutingObjective = 'NIU_OPTIMAL'
+  objective: import('@/types/routing').RoutingObjective = 'NIU_OPTIMAL',
+  incident?: import('@/types/incident').SimulatedIncident | null
 ): SmartRouteComparisonResult {
-  let recommendedRoute = route.alternatives.find((a) => a.objective === objective);
+  const dynamicAlternatives: SmartRouteAlternative[] = route.alternatives.map((alt) => {
+    // Determine if incident affects this alternative
+    let incidentDurationMult = 1.0;
+    let incidentDelaySec = 0;
+    let incidentCongestionAdd = 0;
+    let incidentCo2Mult = 1.0;
+
+    if (incident) {
+      const incName = incident.intersectionName.toLowerCase().split(' ')[0];
+      const passesIncident =
+        alt.keyCorridors.some((k) => k.toLowerCase().includes(incName)) ||
+        alt.pathDescription.toLowerCase().includes(incName) ||
+        alt.title.toLowerCase().includes(incName) ||
+        alt.geometry.coordinates.some(([lng, lat]) => {
+          const dLat = Math.abs(lat - incident.coordinates.lat);
+          const dLng = Math.abs(lng - incident.coordinates.lng);
+          return dLat < 0.009 && dLng < 0.009;
+        });
+
+      if (passesIncident) {
+        if (incident.severity === 'major') {
+          incidentDurationMult = 1.75;
+          incidentDelaySec = 220;
+          incidentCongestionAdd = 32;
+          incidentCo2Mult = 1.65;
+        } else if (incident.severity === 'moderate') {
+          incidentDurationMult = 1.40;
+          incidentDelaySec = 130;
+          incidentCongestionAdd = 20;
+          incidentCo2Mult = 1.35;
+        } else {
+          incidentDurationMult = 1.18;
+          incidentDelaySec = 60;
+          incidentCongestionAdd = 10;
+          incidentCo2Mult = 1.15;
+        }
+      }
+    }
+
+    // Scenario factors
+    // Arterial/Direct routes degrade faster in rush hour than bypass/green routes
+    const isDirectArterial = alt.type === 'fastest' || alt.tagline.toLowerCase().includes('direct') || alt.tagline.toLowerCase().includes('spine');
+    const isBypass = alt.type === 'optimal' || alt.tagline.toLowerCase().includes('bypass') || alt.tagline.toLowerCase().includes('loop');
+
+    let scenarioDurationMult = 1.0;
+    let scenarioDelayMult = 1.0;
+    let scenarioCongestionAdd = 0;
+    let scenarioCo2Mult = 1.0;
+    let scenarioSpeedMult = 1.0;
+    let scoreShift = 0;
+
+    if (scenario === 'rush_hour') {
+      if (isDirectArterial) {
+        scenarioDurationMult = 1.65;
+        scenarioDelayMult = 2.10;
+        scenarioCongestionAdd = 34;
+        scenarioCo2Mult = 1.58;
+        scenarioSpeedMult = 0.58;
+        scoreShift = -26;
+      } else if (isBypass) {
+        scenarioDurationMult = 1.32;
+        scenarioDelayMult = 1.45;
+        scenarioCongestionAdd = 18;
+        scenarioCo2Mult = 1.28;
+        scenarioSpeedMult = 0.76;
+        scoreShift = -10;
+      } else {
+        scenarioDurationMult = 1.45;
+        scenarioDelayMult = 1.70;
+        scenarioCongestionAdd = 24;
+        scenarioCo2Mult = 1.40;
+        scenarioSpeedMult = 0.68;
+        scoreShift = -18;
+      }
+    } else if (scenario === 'optimized') {
+      scenarioDurationMult = 0.78;
+      scenarioDelayMult = 0.58;
+      scenarioCongestionAdd = -16;
+      scenarioCo2Mult = 0.82;
+      scenarioSpeedMult = 1.24;
+      scoreShift = +12;
+    } else if (scenario === 'emergency') {
+      const isCorridorMatch = alt.keyCorridors.some((k) =>
+        ['alpha', 'pari chowk', 'knowledge'].some((term) => k.toLowerCase().includes(term))
+      );
+      if (isCorridorMatch) {
+        scenarioDurationMult = 0.85;
+        scenarioDelayMult = 0.70;
+        scenarioCongestionAdd = -10;
+        scenarioCo2Mult = 0.90;
+        scenarioSpeedMult = 1.15;
+        scoreShift = +8;
+      } else {
+        scenarioDurationMult = 1.15;
+        scenarioDelayMult = 1.35;
+        scenarioCongestionAdd = 12;
+        scenarioCo2Mult = 1.14;
+        scenarioSpeedMult = 0.88;
+        scoreShift = -8;
+      }
+    }
+
+    const durationMinutes = Math.max(
+      3,
+      Math.round(alt.durationMinutes * scenarioDurationMult * incidentDurationMult)
+    );
+    const durationSeconds = durationMinutes * 60;
+    const etaMinutes = durationMinutes;
+
+    const intersectionDelaySeconds = Math.max(
+      10,
+      Math.round(alt.intersectionDelaySeconds * scenarioDelayMult + incidentDelaySec)
+    );
+    const idleDelayMinutes = Number(
+      Math.max(0.5, (alt.idleDelayMinutes * scenarioDelayMult + incidentDelaySec / 60)).toFixed(1)
+    );
+
+    const congestionScore = Math.min(
+      99,
+      Math.max(10, Math.round(alt.congestionScore + scenarioCongestionAdd + incidentCongestionAdd))
+    );
+    const congestionIndex = congestionScore;
+    const trafficLevel: 'Low' | 'Medium' | 'High' =
+      congestionScore >= 60 ? 'High' : congestionScore >= 35 ? 'Medium' : 'Low';
+
+    const emissionsKg = Number(
+      Math.max(0.2, (alt.emissionsKg * scenarioCo2Mult * incidentCo2Mult)).toFixed(2)
+    );
+    const estimatedCo2Kg = emissionsKg;
+
+    const fuelConsumedLiters = Number(
+      Math.max(0.1, (alt.fuelConsumedLiters * scenarioCo2Mult * incidentCo2Mult)).toFixed(2)
+    );
+
+    const averageSpeedKmH = Number(
+      Math.max(8.0, Math.min(65.0, (alt.averageSpeedKmH * scenarioSpeedMult) / incidentDurationMult)).toFixed(1)
+    );
+
+    const niuScore = Math.min(
+      99,
+      Math.max(12, Math.round(alt.niuScore + scoreShift - (incident ? (incident.severity === 'major' ? 20 : 10) : 0)))
+    );
+
+    return {
+      ...alt,
+      durationMinutes,
+      durationSeconds,
+      etaMinutes,
+      intersectionDelaySeconds,
+      idleDelayMinutes,
+      congestionScore,
+      congestionIndex,
+      trafficLevel,
+      emissionsKg,
+      estimatedCo2Kg,
+      fuelConsumedLiters,
+      averageSpeedKmH,
+      niuScore,
+      scoreBreakdown: {
+        timeScore: Math.min(99, Math.max(10, Math.round(alt.scoreBreakdown.timeScore + (scenario === 'optimized' ? 10 : scenario === 'rush_hour' ? -18 : 0)))),
+        congestionScore: Math.min(99, Math.max(10, 100 - congestionScore)),
+        emissionsScore: Math.min(99, Math.max(10, Math.round(alt.scoreBreakdown.emissionsScore + (scenario === 'optimized' ? 8 : scenario === 'rush_hour' ? -14 : 0)))),
+        delayScore: Math.min(99, Math.max(10, Math.round(100 - (intersectionDelaySeconds / 2)))),
+      },
+    };
+  });
+
+  // Re-rank and find recommended route according to objective
+  let recommendedRoute = dynamicAlternatives.find((a) => a.objective === objective);
   if (!recommendedRoute) {
-    recommendedRoute = route.alternatives.find((a) => a.isRecommended) || route.alternatives[0] || null;
+    if (objective === 'FASTEST') {
+      recommendedRoute = [...dynamicAlternatives].sort((a, b) => a.durationMinutes - b.durationMinutes)[0];
+    } else if (objective === 'LOWEST_EMISSIONS') {
+      recommendedRoute = [...dynamicAlternatives].sort((a, b) => a.estimatedCo2Kg - b.estimatedCo2Kg)[0];
+    } else if (objective === 'LOWEST_CONGESTION') {
+      recommendedRoute = [...dynamicAlternatives].sort((a, b) => a.congestionScore - b.congestionScore)[0];
+    } else if (objective === 'SHORTEST') {
+      recommendedRoute = [...dynamicAlternatives].sort((a, b) => a.distanceKm - b.distanceKm)[0];
+    } else {
+      recommendedRoute = [...dynamicAlternatives].sort((a, b) => b.niuScore - a.niuScore)[0];
+    }
   }
+
+  const finalAlternatives = dynamicAlternatives.map((alt) => ({
+    ...alt,
+    isRecommended: alt.id === recommendedRoute?.id,
+  }));
+
+  const finalRecommended = finalAlternatives.find((a) => a.id === recommendedRoute?.id) || finalAlternatives[0];
+
   return {
     zoneId: 'greater-noida-core',
     origin: {
@@ -1328,9 +1520,9 @@ export function demoRouteToComparisonResult(
     },
     scenario,
     objective,
-    routes: route.alternatives,
-    recommendedRoute,
-    recommendedRouteId: recommendedRoute?.id || '',
+    routes: finalAlternatives,
+    recommendedRoute: finalRecommended,
+    recommendedRouteId: finalRecommended.id,
     provenance: {
       roadNetwork: 'REAL — OSM',
       traffic: 'SIMULATED — NIU SYNTHETIC DEMAND ENGINE',

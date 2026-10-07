@@ -10,24 +10,30 @@ import { useSimulation } from '@/context/simulation-context';
 import { apiGetImpact } from '@/lib/api-client';
 
 export default function ImpactPage() {
-  const { metrics: simMetrics } = useSimulation();
+  const { simulationMode, mobilityState } = useSimulation();
   const [serverMetrics, setServerMetrics] = React.useState<{
     co2SavedTons: number;
     fuelSavedLiters: number;
     tripsAvoided: number;
     commuteHoursSaved: number;
+    trees: number;
+    charges: number;
+    pm25: number;
   } | null>(null);
 
   React.useEffect(() => {
     async function loadImpact() {
       try {
-        const res = await apiGetImpact();
+        const res = await apiGetImpact(simulationMode);
         if (res.success && res.data) {
           setServerMetrics({
             co2SavedTons: res.data.metrics.estimatedCo2SavedTons,
             fuelSavedLiters: res.data.metrics.fuelSavedLiters,
             tripsAvoided: res.data.metrics.tripsAvoided,
             commuteHoursSaved: res.data.metrics.commuteHoursSaved,
+            trees: Math.round(res.data.metrics.estimatedCo2SavedTons * 45),
+            charges: Math.round(res.data.metrics.estimatedCo2SavedTons * 121950),
+            pm25: Number((res.data.metrics.fuelSavedLiters * 0.0048).toFixed(2)),
           });
         }
       } catch {
@@ -35,12 +41,15 @@ export default function ImpactPage() {
       }
     }
     loadImpact();
-  }, []);
+  }, [simulationMode]);
 
-  const co2Val = serverMetrics ? serverMetrics.co2SavedTons : simMetrics.estimatedCo2SavedTons;
-  const fuelVal = serverMetrics ? serverMetrics.fuelSavedLiters : 788;
-  const tripsVal = serverMetrics ? serverMetrics.tripsAvoided : simMetrics.activeTrips;
-  const hoursVal = serverMetrics ? serverMetrics.commuteHoursSaved : 48.5;
+  const co2Val = serverMetrics ? serverMetrics.co2SavedTons : mobilityState.co2SavedTons;
+  const fuelVal = serverMetrics ? serverMetrics.fuelSavedLiters : mobilityState.fuelSavedLiters;
+  const tripsVal = serverMetrics ? serverMetrics.tripsAvoided : mobilityState.tripsAvoided;
+  const hoursVal = serverMetrics ? serverMetrics.commuteHoursSaved : mobilityState.commuteHoursSaved;
+  const treesVal = serverMetrics ? serverMetrics.trees : Math.round(mobilityState.co2SavedTons * 45);
+  const chargesVal = serverMetrics ? serverMetrics.charges.toLocaleString() : Math.round(mobilityState.co2SavedTons * 121950).toLocaleString();
+  const pm25Val = serverMetrics ? serverMetrics.pm25 : Number((mobilityState.fuelSavedLiters * 0.0048).toFixed(2));
 
   return (
     <div className="space-y-6">
@@ -132,19 +141,19 @@ export default function ImpactPage() {
             <div className="space-y-3 text-xs">
               <div className="p-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50">
                 <div className="text-slate-500 dark:text-slate-400 text-[11px]">Tree Seedlings Grown (10 Yrs)</div>
-                <div className="text-xl font-bold font-mono text-emerald-700 dark:text-emerald-300 mt-0.5">82 Trees</div>
+                <div className="text-xl font-bold font-mono text-emerald-700 dark:text-emerald-300 mt-0.5">{treesVal} Trees</div>
                 <div className="text-[10px] text-slate-500 mt-0.5">Equivalent biogenic carbon sequestration</div>
               </div>
 
               <div className="p-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50">
                 <div className="text-slate-500 dark:text-slate-400 text-[11px]">Smartphone Charges Averted</div>
-                <div className="text-xl font-bold font-mono text-cyan-700 dark:text-cyan-300 mt-0.5">221,950</div>
+                <div className="text-xl font-bold font-mono text-cyan-700 dark:text-cyan-300 mt-0.5">{chargesVal}</div>
                 <div className="text-[10px] text-slate-500 mt-0.5">Grid kilowatt-hour equivalent</div>
               </div>
 
               <div className="p-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50">
                 <div className="text-slate-500 dark:text-slate-400 text-[11px]">Urban Smog Particulates (PM2.5)</div>
-                <div className="text-xl font-bold font-mono text-amber-700 dark:text-amber-300 mt-0.5">-3.84 kg</div>
+                <div className="text-xl font-bold font-mono text-amber-700 dark:text-amber-300 mt-0.5">-{pm25Val} kg</div>
                 <div className="text-[10px] text-slate-500 mt-0.5">Fine particulate matter mitigated</div>
               </div>
             </div>

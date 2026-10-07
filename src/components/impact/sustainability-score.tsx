@@ -3,9 +3,11 @@
 import React from 'react';
 import { calculateSustainabilityScore } from '@/lib/emissions/emissions-engine';
 import { Info } from 'lucide-react';
+import { useSimulation } from '@/context/simulation-context';
 
 export function SustainabilityScore() {
-  const scoreData = calculateSustainabilityScore();
+  const { mobilityState } = useSimulation();
+  const scoreData = calculateSustainabilityScore(mobilityState);
   const { breakdown } = scoreData;
 
   const categories = [

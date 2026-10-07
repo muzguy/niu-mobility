@@ -7,10 +7,13 @@ import { carpoolEngine } from '@/lib/carpool/carpool-engine';
 import { RideMatchResult, RideSearchQuery } from '@/types/carpool';
 import { MetricCard } from '@/components/dashboard/metric-card';
 import { Users, Leaf, Car, Info } from 'lucide-react';
+import { useSimulation } from '@/context/simulation-context';
 
 import { apiSearchCarpool } from '@/lib/api-client';
 
 export default function CarpoolPage() {
+  const { simulationMode, mobilityState } = useSimulation();
+
   const [matches, setMatches] = useState<RideMatchResult[]>(() =>
     carpoolEngine.searchRides({
       origin: 'Alpha 1',
@@ -44,6 +47,10 @@ export default function CarpoolPage() {
     carpoolEngine.bookSeat(rideId, 1);
   };
 
+  const sharedTripsVal = Math.round(mobilityState.totalVehicles * 0.28);
+  const co2MitigatedVal = Math.round(mobilityState.co2SavedTons * 1000 * 0.32);
+  const overlapVal = simulationMode === 'rush_hour' ? 92 : simulationMode === 'optimized' ? 86 : 88;
+
   return (
     <div className="space-y-6">
       {/* Title Header */}
@@ -63,7 +70,7 @@ export default function CarpoolPage() {
         </div>
 
         <div className="text-xs font-mono text-slate-700 dark:text-slate-400 bg-slate-100 dark:bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 self-start sm:self-auto">
-          Active Carpoolers: <span className="text-emerald-600 dark:text-emerald-400 font-bold">142 Drivers</span>
+          Active Carpoolers: <span className="text-emerald-600 dark:text-emerald-400 font-bold">{Math.round(sharedTripsVal * 1.6)} Drivers</span>
         </div>
       </div>
 
@@ -71,9 +78,9 @@ export default function CarpoolPage() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <MetricCard
           label="Active Shared Trips"
-          value="87"
+          value={sharedTripsVal}
           unit="rides"
-          change="Pooled journeys"
+          change={simulationMode === 'rush_hour' ? '+38% peak pooling' : 'Pooled journeys'}
           changeType="positive"
           icon={Users}
           accentColor="cyan"
@@ -82,7 +89,7 @@ export default function CarpoolPage() {
 
         <MetricCard
           label="Daily CO2 Mitigated"
-          value="524"
+          value={co2MitigatedVal}
           unit="kg"
           change="Direct vehicle reduction"
           changeType="positive"
@@ -93,7 +100,7 @@ export default function CarpoolPage() {
 
         <MetricCard
           label="Average Route Overlap"
-          value="88"
+          value={overlapVal}
           unit="%"
           change="High corridor affinity"
           changeType="positive"

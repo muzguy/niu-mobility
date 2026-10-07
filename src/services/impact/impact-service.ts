@@ -1,5 +1,6 @@
 import { calculateSustainabilityScore } from '@/lib/emissions/emissions-engine';
-import { getRepository } from '@/lib/repositories';
+import { calculateMobilityState } from '@/lib/simulation/unified-simulation-state';
+import { SimulationTrafficMode } from '@/lib/simulation/simulation-engine';
 import { SustainabilityScore } from '@/types/impact';
 
 export interface WeeklyImpactItem {
@@ -11,9 +12,7 @@ export interface WeeklyImpactItem {
 }
 
 export class ImpactService {
-  private repo = getRepository();
-
-  public async getImpactData(): Promise<{
+  public async getImpactData(scenario: SimulationTrafficMode = 'normal'): Promise<{
     metrics: {
       estimatedCo2SavedTons: number;
       fuelSavedLiters: number;
@@ -31,33 +30,35 @@ export class ImpactService {
     protocol: string;
     timestamp: string;
   }> {
-    const metricsRecord = await this.repo.getImpactMetrics();
-    const score = calculateSustainabilityScore();
+    const unified = calculateMobilityState({ scenario });
+    const score = calculateSustainabilityScore(scenario);
+
+    const scenarioFactor = scenario === 'rush_hour' ? 1.25 : scenario === 'optimized' ? 1.40 : scenario === 'emergency' ? 1.10 : 1.0;
 
     const weeklyImpactData: WeeklyImpactItem[] = [
-      { day: 'Mon', carpoolKg: 380, signalOptKg: 240, ecoRouteKg: 190, totalSavedKg: 810 },
-      { day: 'Tue', carpoolKg: 420, signalOptKg: 260, ecoRouteKg: 210, totalSavedKg: 890 },
-      { day: 'Wed', carpoolKg: 460, signalOptKg: 290, ecoRouteKg: 230, totalSavedKg: 980 },
-      { day: 'Thu', carpoolKg: 490, signalOptKg: 310, ecoRouteKg: 250, totalSavedKg: 1050 },
-      { day: 'Fri', carpoolKg: 540, signalOptKg: 340, ecoRouteKg: 290, totalSavedKg: 1170 },
-      { day: 'Sat', carpoolKg: 310, signalOptKg: 180, ecoRouteKg: 150, totalSavedKg: 640 },
-      { day: 'Sun', carpoolKg: 280, signalOptKg: 160, ecoRouteKg: 130, totalSavedKg: 570 },
+      { day: 'Mon', carpoolKg: Math.round(380 * scenarioFactor), signalOptKg: Math.round(240 * scenarioFactor), ecoRouteKg: Math.round(190 * scenarioFactor), totalSavedKg: Math.round(810 * scenarioFactor) },
+      { day: 'Tue', carpoolKg: Math.round(420 * scenarioFactor), signalOptKg: Math.round(260 * scenarioFactor), ecoRouteKg: Math.round(210 * scenarioFactor), totalSavedKg: Math.round(890 * scenarioFactor) },
+      { day: 'Wed', carpoolKg: Math.round(460 * scenarioFactor), signalOptKg: Math.round(290 * scenarioFactor), ecoRouteKg: Math.round(230 * scenarioFactor), totalSavedKg: Math.round(980 * scenarioFactor) },
+      { day: 'Thu', carpoolKg: Math.round(490 * scenarioFactor), signalOptKg: Math.round(310 * scenarioFactor), ecoRouteKg: Math.round(250 * scenarioFactor), totalSavedKg: Math.round(1050 * scenarioFactor) },
+      { day: 'Fri', carpoolKg: Math.round(540 * scenarioFactor), signalOptKg: Math.round(340 * scenarioFactor), ecoRouteKg: Math.round(290 * scenarioFactor), totalSavedKg: Math.round(1170 * scenarioFactor) },
+      { day: 'Sat', carpoolKg: Math.round(310 * scenarioFactor), signalOptKg: Math.round(180 * scenarioFactor), ecoRouteKg: Math.round(150 * scenarioFactor), totalSavedKg: Math.round(640 * scenarioFactor) },
+      { day: 'Sun', carpoolKg: Math.round(280 * scenarioFactor), signalOptKg: Math.round(160 * scenarioFactor), ecoRouteKg: Math.round(130 * scenarioFactor), totalSavedKg: Math.round(570 * scenarioFactor) },
     ];
 
     return {
       metrics: {
-        estimatedCo2SavedTons: metricsRecord.co2SavedTons,
-        fuelSavedLiters: metricsRecord.fuelSavedLiters,
-        tripsAvoided: metricsRecord.vehiclesSaved,
-        commuteHoursSaved: metricsRecord.timeSavedHours,
-        sustainabilityIndex: metricsRecord.sustainabilityIndex,
+        estimatedCo2SavedTons: unified.co2SavedTons,
+        fuelSavedLiters: unified.fuelSavedLiters,
+        tripsAvoided: unified.tripsAvoided,
+        commuteHoursSaved: unified.commuteHoursSaved,
+        sustainabilityIndex: unified.niuScore,
       },
       sustainabilityScore: score,
       weeklyImpactData,
       environmentalEquivalencies: {
-        treeSeedlingsTenYears: 82,
-        smartphoneChargesAverted: 221950,
-        smogParticulatesPm25Kg: 3.84,
+        treeSeedlingsTenYears: Math.round(unified.co2SavedTons * 45),
+        smartphoneChargesAverted: Math.round(unified.co2SavedTons * 121950),
+        smogParticulatesPm25Kg: Number((unified.fuelSavedLiters * 0.0048).toFixed(2)),
       },
       protocol: 'IPCC Tier-1 Greenhouse Gas Protocol',
       timestamp: new Date().toISOString(),

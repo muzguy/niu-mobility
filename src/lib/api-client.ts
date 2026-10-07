@@ -152,7 +152,8 @@ export async function apiGetRoutes(
 /**
  * Fetch impact metrics via API
  */
-export async function apiGetImpact() {
+export async function apiGetImpact(scenario?: string) {
+  const query = scenario ? `?scenario=${encodeURIComponent(scenario)}` : '';
   return fetchApi<{
     metrics: {
       estimatedCo2SavedTons: number;
@@ -169,7 +170,7 @@ export async function apiGetImpact() {
       ecoRouteKg: number;
       totalSavedKg: number;
     }>;
-  }>('/api/impact');
+  }>(`/api/impact${query}`);
 }
 
 /**

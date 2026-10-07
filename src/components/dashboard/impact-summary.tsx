@@ -4,9 +4,11 @@ import React from 'react';
 import Link from 'next/link';
 import { Leaf, ArrowUpRight, Droplet, Users, Clock } from 'lucide-react';
 import { calculateSustainabilityScore } from '@/lib/emissions/emissions-engine';
+import { useSimulation } from '@/context/simulation-context';
 
 export function ImpactSummary() {
-  const scoreData = calculateSustainabilityScore();
+  const { mobilityState } = useSimulation();
+  const scoreData = calculateSustainabilityScore(mobilityState);
 
   return (
     <div className="rounded-xl border border-slate-200/90 dark:border-slate-800 bg-white/90 dark:bg-[#0f1523]/80 p-5 backdrop-blur-sm h-full flex flex-col justify-between shadow-xs dark:shadow-none transition-colors duration-150">
@@ -79,7 +81,7 @@ export function ImpactSummary() {
               <Droplet className="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400" />
               <span>Fuel Saved</span>
             </div>
-            <div className="font-mono font-bold text-slate-900 dark:text-slate-200 text-sm">788 Liters</div>
+            <div className="font-mono font-bold text-slate-900 dark:text-slate-200 text-sm">{mobilityState.fuelSavedLiters} Liters</div>
             <div className="text-[10px] text-slate-500 dark:text-slate-500 mt-0.5">Thermal burn averted</div>
           </div>
 
@@ -88,7 +90,7 @@ export function ImpactSummary() {
               <Users className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
               <span>Solo Trips Cut</span>
             </div>
-            <div className="font-mono font-bold text-slate-900 dark:text-slate-200 text-sm">342 Vehicles</div>
+            <div className="font-mono font-bold text-slate-900 dark:text-slate-200 text-sm">{mobilityState.tripsAvoided} Vehicles</div>
             <div className="text-[10px] text-slate-500 dark:text-slate-500 mt-0.5">Removed from corridors</div>
           </div>
 
@@ -97,7 +99,7 @@ export function ImpactSummary() {
               <Clock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
               <span>Idle Reduced</span>
             </div>
-            <div className="font-mono font-bold text-slate-900 dark:text-slate-200 text-sm">42.8 Hours</div>
+            <div className="font-mono font-bold text-slate-900 dark:text-slate-200 text-sm">{mobilityState.commuteHoursSaved} Hours</div>
             <div className="text-[10px] text-slate-500 dark:text-slate-500 mt-0.5">At red light phases</div>
           </div>
 
@@ -106,7 +108,7 @@ export function ImpactSummary() {
               <Leaf className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
               <span>CO2 Avoided</span>
             </div>
-            <div className="font-mono font-bold text-slate-900 dark:text-slate-200 text-sm">1.82 Metric Tons</div>
+            <div className="font-mono font-bold text-slate-900 dark:text-slate-200 text-sm">{mobilityState.co2SavedTons} Metric Tons</div>
             <div className="text-[10px] text-slate-500 dark:text-slate-500 mt-0.5">Across urban grid</div>
           </div>
         </div>

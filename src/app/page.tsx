@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useSimulation } from '@/context/simulation-context';
 import { MetricCard } from '@/components/dashboard/metric-card';
 import { MobilityMap } from '@/components/map/mobility-map';
@@ -8,17 +8,22 @@ import { IntersectionPanel } from '@/components/traffic/intersection-panel';
 import { TrafficOverview } from '@/components/dashboard/traffic-overview';
 import { MobilityActivity } from '@/components/dashboard/mobility-activity';
 import { ImpactSummary } from '@/components/dashboard/impact-summary';
-import { Activity, Car, Leaf, Clock, Siren } from 'lucide-react';
+import { Activity, Car, Leaf, Clock, Siren, BarChart2 } from 'lucide-react';
+import { calculateMobilityState } from '@/lib/simulation/unified-simulation-state';
 
 export default function CommandCenterPage() {
   const {
-    metrics,
+    mobilityState,
+    simulationMode,
     selectedIntersection,
     emergencyCorridor,
     triggerEmergency,
     isRushHour,
     toggleRushHour,
   } = useSimulation();
+
+  const normalState = useMemo(() => calculateMobilityState({ scenario: 'normal' }), []);
+  const delayDelta = (mobilityState.averageDelayMinutes - normalState.averageDelayMinutes).toFixed(1);
 
   return (
     <div className="space-y-6">
@@ -48,7 +53,7 @@ export default function CommandCenterPage() {
                 : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
             }`}
           >
-            {isRushHour ? 'Rush Hour (+35%) Active' : 'Simulate Rush Hour'}
+            {isRushHour ? 'Rush Hour (+55%) Active' : 'Simulate Rush Hour'}
           </button>
 
           <button
@@ -65,24 +70,24 @@ export default function CommandCenterPage() {
         </div>
       </div>
 
-      {/* TOP METRICS (Required: Traffic Load 68%, Active Trips 342, Estimated CO2 1.82 t, Average Delay 14 min) */}
+      {/* TOP METRICS (Wired directly to unified mobilityState) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard
           label="Traffic Load"
-          value={metrics.trafficLoadPct}
+          value={mobilityState.trafficLoadPct}
           unit="%"
-          change={isRushHour ? '+18% during peak' : '-4% from average'}
-          changeType={isRushHour ? 'negative' : 'positive'}
+          change={isRushHour ? '+26% during peak' : mobilityState.trafficLoadPct < 40 ? '-14% vs normal' : '-4% from average'}
+          changeType={mobilityState.trafficLoadPct > 65 ? 'negative' : 'positive'}
           icon={Activity}
-          accentColor={metrics.trafficLoadPct > 75 ? 'rose' : metrics.trafficLoadPct > 55 ? 'amber' : 'green'}
+          accentColor={mobilityState.trafficLoadPct > 70 ? 'rose' : mobilityState.trafficLoadPct > 50 ? 'amber' : 'green'}
           description="Monitored arterial capacity"
         />
 
         <MetricCard
           label="Active Trips"
-          value={metrics.activeTrips}
+          value={mobilityState.totalVehicles}
           unit="trips"
-          change="342 Active vehicles"
+          change={`${mobilityState.totalVehicles} active vehicles`}
           changeType="neutral"
           icon={Car}
           accentColor="cyan"
@@ -91,9 +96,9 @@ export default function CommandCenterPage() {
 
         <MetricCard
           label="Estimated CO2 Saved"
-          value={metrics.estimatedCo2SavedTons}
+          value={mobilityState.co2SavedTons}
           unit="t"
-          change="+0.32 t today"
+          change={`+${(mobilityState.co2SavedTons * 0.22).toFixed(2)} t today`}
           changeType="positive"
           icon={Leaf}
           accentColor="green"
@@ -102,14 +107,90 @@ export default function CommandCenterPage() {
 
         <MetricCard
           label="Average Delay"
-          value={metrics.averageDelayMinutes}
+          value={mobilityState.averageDelayMinutes}
           unit="min"
-          change="-3.2 min vs baseline"
-          changeType="positive"
+          change={`${Number(delayDelta) > 0 ? '+' + delayDelta : delayDelta} min vs baseline`}
+          changeType={Number(delayDelta) > 0 ? 'negative' : 'positive'}
           icon={Clock}
-          accentColor={metrics.averageDelayMinutes > 18 ? 'rose' : 'amber'}
+          accentColor={mobilityState.averageDelayMinutes > 7.0 ? 'rose' : 'amber'}
           description="Intersection delay index"
         />
+      </div>
+
+      {/* SCENARIO IMPACT COMPARISON (NORMAL vs CURRENT SCENARIO) */}
+      <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white/70 dark:bg-slate-900/50 p-4 backdrop-blur-sm">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200/60 dark:border-slate-800/60 pb-3 mb-3">
+          <div className="flex items-center gap-2">
+            <BarChart2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+            <span className="text-xs font-bold uppercase tracking-wider font-mono text-slate-800 dark:text-slate-200">
+              Scenario Impact Comparison
+            </span>
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-blue-500/10 text-blue-700 dark:text-blue-400 border border-blue-500/20 font-semibold">
+              NORMAL vs {simulationMode.toUpperCase().replace('_', ' ')}
+            </span>
+          </div>
+          <span className="text-[11px] text-slate-500 dark:text-slate-400">
+            Deterministic delta calculated across {mobilityState.intersections.length} monitored junctions
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+          <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-800">
+            <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">Average Speed</div>
+            <div className="mt-1 font-mono font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+              <span>{normalState.averageSpeedKmH} km/h</span>
+              <span className="text-slate-400">→</span>
+              <span className={mobilityState.averageSpeedKmH < normalState.averageSpeedKmH ? 'text-rose-600 dark:text-rose-400' : mobilityState.averageSpeedKmH > normalState.averageSpeedKmH ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-700 dark:text-slate-300'}>
+                {mobilityState.averageSpeedKmH} km/h
+              </span>
+            </div>
+            <div className="text-[10px] text-slate-400 mt-0.5">
+              {mobilityState.averageSpeedKmH - normalState.averageSpeedKmH > 0 ? `+${(mobilityState.averageSpeedKmH - normalState.averageSpeedKmH).toFixed(1)} km/h` : `${(mobilityState.averageSpeedKmH - normalState.averageSpeedKmH).toFixed(1)} km/h`}
+            </div>
+          </div>
+
+          <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-800">
+            <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">Average Delay</div>
+            <div className="mt-1 font-mono font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+              <span>{normalState.averageDelayMinutes} min</span>
+              <span className="text-slate-400">→</span>
+              <span className={mobilityState.averageDelayMinutes > normalState.averageDelayMinutes ? 'text-rose-600 dark:text-rose-400' : mobilityState.averageDelayMinutes < normalState.averageDelayMinutes ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-700 dark:text-slate-300'}>
+                {mobilityState.averageDelayMinutes} min
+              </span>
+            </div>
+            <div className="text-[10px] text-slate-400 mt-0.5">
+              {mobilityState.averageDelayMinutes - normalState.averageDelayMinutes > 0 ? `+${(mobilityState.averageDelayMinutes - normalState.averageDelayMinutes).toFixed(1)} min` : `${(mobilityState.averageDelayMinutes - normalState.averageDelayMinutes).toFixed(1)} min`}
+            </div>
+          </div>
+
+          <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-800">
+            <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">Total CO2</div>
+            <div className="mt-1 font-mono font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+              <span>{(normalState.co2Kg / 1000).toFixed(1)} t</span>
+              <span className="text-slate-400">→</span>
+              <span className={mobilityState.co2Kg > normalState.co2Kg ? 'text-rose-600 dark:text-rose-400' : mobilityState.co2Kg < normalState.co2Kg ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-700 dark:text-slate-300'}>
+                {(mobilityState.co2Kg / 1000).toFixed(1)} t
+              </span>
+            </div>
+            <div className="text-[10px] text-slate-400 mt-0.5">
+              {mobilityState.co2Kg - normalState.co2Kg > 0 ? `+${((mobilityState.co2Kg - normalState.co2Kg)/1000).toFixed(2)} t` : `${((mobilityState.co2Kg - normalState.co2Kg)/1000).toFixed(2)} t`}
+            </div>
+          </div>
+
+          <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-800">
+            <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">NIU Mobility Score</div>
+            <div className="mt-1 font-mono font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+              <span>{normalState.niuScore}</span>
+              <span className="text-slate-400">→</span>
+              <span className={mobilityState.niuScore < normalState.niuScore ? 'text-rose-600 dark:text-rose-400' : mobilityState.niuScore > normalState.niuScore ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-700 dark:text-slate-300'}>
+                {mobilityState.niuScore}
+              </span>
+            </div>
+            <div className="text-[10px] text-slate-400 mt-0.5">
+              {mobilityState.niuScore - normalState.niuScore > 0 ? `+${mobilityState.niuScore - normalState.niuScore} pts` : `${mobilityState.niuScore - normalState.niuScore} pts`}
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* MAIN AREA: Interactive Simulated Mobility Map */}

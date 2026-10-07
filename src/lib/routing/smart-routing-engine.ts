@@ -26,6 +26,7 @@ export interface SmartRouteQueryOptions {
   objective?: RoutingObjective;
   scenario?: SimulationTrafficMode;
   vehicleType?: 'petrol' | 'diesel' | 'hybrid' | 'ev';
+  incident?: import('@/types/incident').SimulatedIncident | null;
 }
 
 export class SmartRoutingEngine implements IRouteProvider {
@@ -43,13 +44,14 @@ export class SmartRoutingEngine implements IRouteProvider {
       zoneId = 'greater-noida-core',
       objective = 'NIU_OPTIMAL',
       scenario = 'normal',
+      incident = null,
     } = options;
 
     // 0. Check for curated demo routes matching origin and destination query strings
     if (typeof origin === 'string' && typeof destination === 'string') {
       const demoMatches = findDemoRoutes(origin, destination);
       if (demoMatches.length > 0) {
-        return demoRouteToComparisonResult(demoMatches[0], scenario, objective);
+        return demoRouteToComparisonResult(demoMatches[0], scenario, objective, incident);
       }
 
       // Check reverse origin/destination direction
@@ -76,7 +78,7 @@ export class SmartRoutingEngine implements IRouteProvider {
             },
           })),
         };
-        return demoRouteToComparisonResult(reversedRoute, scenario, objective);
+        return demoRouteToComparisonResult(reversedRoute, scenario, objective, incident);
       }
     }
 
@@ -115,7 +117,7 @@ export class SmartRoutingEngine implements IRouteProvider {
     }
 
     // 4. Build or retrieve cached RoadGraph for this zone and scenario
-    const graph = buildRoadGraph(zone, scenario);
+    const graph = buildRoadGraph(zone, scenario, incident);
 
     // 5. Deterministically snap origin and destination to nearest usable road nodes
     let snapOrigin;
